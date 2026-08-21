@@ -106,7 +106,23 @@ conformance ที่ตรวจใหม่ · component ที่ยังเ
    → เปิด issue แล้ว [agent-platform#40](https://github.com/monthop-gmail/agent-platform/issues/40)
 2. **event ที่ปล่อยออกมายังไม่มีใครรับ** — `devfactory-core` รับ `event/v1` ได้ตามสัญญาอยู่แล้ว
    แต่การต่อท่อจริงต้องตกลงเรื่อง transport กันก่อน
-   → เปิด issue แล้ว [devfactory-core#32](https://github.com/monthop-gmail/devfactory-core/issues/32)
+   → [devfactory-core#32](https://github.com/monthop-gmail/devfactory-core/issues/32)
+
+   **ค้างเพราะ deadlock ไม่ใช่เพราะยาก** — ทั้งสองฝั่งจบประโยคด้วย "รอ Architecture Owner"
+   แล้วหยุด ต่างคนต่างคิดว่ากำลังรออีกฝ่าย
+
+   แก้ด้วย trigger ตามเงื่อนไข ไม่ใช่วันที่ลอย ๆ เพราะสิ่งที่ขวางคือ `EventLog` ของ
+   ปลายทางที่ยังเป็น in-memory ไม่ใช่เวลา — **store ต้องมาก่อน transport**
+
+   | | |
+   | --- | --- |
+   | เคาะเมื่อ | `devfactory-core` `EventLog` มีที่เก็บถาวร |
+   | backstop | `2026-10-31` — ถึงแล้วยังไม่มี store ให้ถือว่า artifact handoff คือท่อจริง |
+
+   > **backstop ที่เขียนไว้แล้วไม่มีใครอ่าน คือคำสัญญาที่ไม่มีผล**
+   > guardian rule `blocking-past-backstop` อ่าน `platform-contract.yaml` ของเราเอง
+   > แล้วเตือนเมื่อเลยกำหนด — เราตรวจ ecosystem ให้คนอื่นได้ ก็ต้องยอมให้ตรวจตัวเอง
+   > ด้วยเกณฑ์เดียวกัน ไม่งั้นเราก็ไม่ต่างจากงานที่ "ประกาศไว้เฉย ๆ" ที่เรารายงานว่าเป็นปัญหา
 
 ร่างต้นฉบับอยู่ที่ [`integration/drafts/`](../integration/drafts/) และผูกกลับเข้า
 `platform-contract.yaml` หัวข้อ `blocking:` เพื่อให้ตามรอยได้ว่าค้างอยู่ที่ไหน

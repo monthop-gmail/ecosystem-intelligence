@@ -140,6 +140,17 @@ rules:
     fix: ตรวจ diff ของ contract ตั้งแต่ commit ที่ pin แล้วตัดสินใจว่าจะ re-pin ไหม
     source: ADR-0006
 
+  - id: blocking-past-backstop
+    severity: warn
+    check: blocking_past_backstop
+    title: ข้อที่ค้างอยู่เลยกำหนดที่เราตั้งไว้เอง
+    why: >-
+      backstop ที่เขียนไว้แล้วไม่มีใครอ่าน คือคำสัญญาที่ไม่มีผล — และเป็นอาการเดียว
+      กับงานที่ "ประกาศไว้เฉย ๆ" ที่ระบบนี้มีไว้เพื่อจับ ถ้าเราตั้งกำหนดกับตัวเอง
+      แล้วปล่อยเลยโดยไม่มีอะไรเตือน เราก็ไม่ต่างจากสิ่งที่เรารายงานว่าเป็นปัญหา
+    fix: ตัดสินตามที่ตกลงไว้ หรือเลื่อน backstop อย่างเปิดเผยพร้อมเหตุผล
+    source: platform-contract.yaml blocking
+
   # ── PR ───────────────────────────────────────────────────────────────
   - id: breaking-without-coordination
     severity: error

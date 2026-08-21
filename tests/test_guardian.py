@@ -232,3 +232,32 @@ def test_block_mode_เท่านั้นที่บล็อกได้(co
         errors = [f for f in findings if f["severity"] == "error"]
         should_block = bool(errors) and review.repo_config("x", cfg)["mode"] == "block"
         assert should_block is expected
+
+
+# ── เราตรวจ ecosystem ให้คนอื่น ก็ต้องยอมให้ตรวจตัวเอง ─────────────────
+def test_backstop_ที่ยังไม่ถึงกำหนดไม่เตือน(conn, rules):
+    """ของจริงตอนนี้ตั้งไว้ 2026-10-31 ยังไม่ถึง"""
+    assert checks.blocking_past_backstop(conn, rules["blocking-past-backstop"]) == []
+
+
+def test_backstop_ที่เลยกำหนดแล้วต้องเตือน(conn, rules, tmp_path, monkeypatch):
+    import yaml as y
+
+    from ecosystem_graph.guardian import checks as mod
+
+    fake_root = tmp_path
+    (fake_root / "platform-contract.yaml").write_text(y.safe_dump({
+        "blocking": [
+            {"id": "เลยกำหนด", "status": "raised", "backstop": "2020-01-01",
+             "issue": "http://x/1"},
+            {"id": "ยังไม่ถึง", "status": "raised", "backstop": "2999-01-01"},
+            {"id": "ปิดแล้ว", "status": "resolved", "backstop": "2020-01-01"},
+            {"id": "ไม่ได้ตั้ง", "status": "raised"},
+        ]}), encoding="utf-8")
+    monkeypatch.setattr(mod, "ROOT", fake_root, raising=False)
+    import ecosystem_graph.config as cfg
+    monkeypatch.setattr(cfg, "ROOT", fake_root)
+
+    found = mod.blocking_past_backstop(conn, rules["blocking-past-backstop"])
+    assert {f["subject"] for f in found} == {"เลยกำหนด"}
+    assert "http://x/1" in found[0]["detail"]

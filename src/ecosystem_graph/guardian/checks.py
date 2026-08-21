@@ -171,6 +171,37 @@ def consumes_without_manifest(conn, rule) -> list[dict]:
             for r in rows]
 
 
+def blocking_past_backstop(conn, rule) -> list[dict]:
+    """ข้อที่เราประกาศว่าค้าง และตั้งกำหนดกับตัวเองไว้ — เลยกำหนดแล้วหรือยัง
+
+    อ่านจาก platform-contract.yaml ของ repo นี้เอง ไม่ใช่ของคนอื่น
+    เราตรวจ ecosystem ให้คนอื่นได้ ก็ต้องยอมให้ตรวจตัวเองด้วยเกณฑ์เดียวกัน
+    """
+    from datetime import date
+
+    from ..config import ROOT
+
+    path = ROOT / "platform-contract.yaml"
+    if not path.exists():
+        return []
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    today = date.today()
+    out = []
+    for item in doc.get("blocking") or []:
+        backstop = item.get("backstop")
+        if not backstop or item.get("status") == "resolved":
+            continue
+        if isinstance(backstop, str):
+            backstop = date.fromisoformat(backstop)
+        if today > backstop:
+            out.append(_finding(
+                rule, item["id"],
+                f"ตั้ง backstop ไว้ {backstop} ผ่านมาแล้ว {(today - backstop).days} วัน "
+                f"· status ยังเป็น {item.get('status')}"
+                + (f" · {item['issue']}" if item.get("issue") else "")))
+    return out
+
+
 def manifest_drift(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
     """เทียบ ecosystem.yaml กับ platform-contract.yaml ของจริงในแต่ละ repo
 
@@ -296,6 +327,7 @@ def pinned_contract_stale(conn, rule, *, gh: GitHubClient | None = None) -> list
 
 # ─────────────────────────────────────────────────────────────────────────
 CHECKS: dict[str, Callable] = {
+    "blocking_past_backstop": blocking_past_backstop,
     "semantics_version_drift": semantics_version_drift,
     "pinned_contract_stale": pinned_contract_stale,
     "orphan_components": orphan_components,

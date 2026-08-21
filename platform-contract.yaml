@@ -65,5 +65,10 @@ blocking:
     severity: medium
     status: raised
     issue: https://github.com/monthop-gmail/devfactory-core/issues/32
+    # trigger ตามเงื่อนไข ไม่ใช่วันที่ลอย ๆ — สิ่งที่ขวางคือ store ของปลายทาง
+    # ที่ยังเป็น in-memory ไม่ใช่เวลา
+    decide_when: devfactory-core EventLog มีที่เก็บถาวร
+    backstop: 2026-10-31   # ถึงวันนี้ยังไม่มี store → artifact handoff คือท่อจริง ปิด issue
+    interim: artifact handoff — integration/events/sample.jsonl + CI artifact
 
 registration: conforming   # registered | conforming
