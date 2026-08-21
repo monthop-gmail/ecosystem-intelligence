@@ -154,3 +154,34 @@ def test_impact_รู้ว่า_derived_contract_ต้องเริ่ม�
 
 def test_impact_contract_ที่ไม่มีคืน_None(conn):
     assert advisor.impact(conn, "ghost/v1") is None
+
+
+# ── ชั้น provider: error ที่ต้องบอกต่างกัน ─────────────────────────────
+def test_quota_หมดกับ_throttle_ต้องบอกคนละอย่าง(monkeypatch):
+    """429 ของ OpenAI ใช้ทั้งสองความหมาย — อันหนึ่งรอแล้วหาย อีกอันรอเท่าไหร่ก็ไม่หาย"""
+    import openai
+
+    from ecosystem_graph.llm.base import LLMError
+    from ecosystem_graph.llm.openai_provider import OpenAIProvider
+
+    p = OpenAIProvider.__new__(OpenAIProvider)
+    p._openai = openai
+    p.model = "test-model"
+
+    class FakeResponses:
+        def __init__(self, body):
+            self.body = body
+
+        def create(self, **kw):
+            err = openai.RateLimitError.__new__(openai.RateLimitError)
+            err.body = self.body
+            raise err
+
+    for body, expect in (
+        ({"code": "insufficient_quota"}, "ไม่มีโควตาเหลือ"),
+        ({"code": "rate_limit_exceeded"}, "รอสักครู่"),
+    ):
+        p._client = type("C", (), {"responses": FakeResponses(body)})()
+        with pytest.raises(LLMError, match=expect):
+            p.complete_json(stable_system="s", volatile_context="{}",
+                            question="q", schema={})

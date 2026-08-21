@@ -29,6 +29,7 @@ class AnthropicProvider:
         self._anthropic = anthropic
         self._client = anthropic.Anthropic()
         self.model = model or os.environ.get("ECOSYSTEM_ANTHROPIC_MODEL", DEFAULT_MODEL)
+        self.last_usage: dict[str, Any] | None = None
 
     def complete_json(self, *, stable_system: str, volatile_context: str,
                       question: str, schema: dict[str, Any],
@@ -70,6 +71,14 @@ class AnthropicProvider:
         if response.stop_reason == "refusal":
             detail = getattr(response.stop_details, "category", None)
             raise LLMError(f"Claude ปฏิเสธคำขอ (category={detail})")
+
+        u = response.usage
+        self.last_usage = {
+            "input_tokens": u.input_tokens,
+            "output_tokens": u.output_tokens,
+            "cache_read": getattr(u, "cache_read_input_tokens", 0) or 0,
+            "cache_write": getattr(u, "cache_creation_input_tokens", 0) or 0,
+        }
 
         text = next((b.text for b in response.content if b.type == "text"), None)
         if not text:

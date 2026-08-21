@@ -2,7 +2,7 @@ PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
 .PHONY: help install validate validate-github up down schema import import-dry \
         registry api openapi sync work graph mermaid impact guardian guardian-pr \
-        ask provider test test-all fmt
+        ask provider eval test test-all fmt
 
 help:
 	@echo "  make install          ติดตั้ง dependency ลง .venv"
@@ -23,6 +23,7 @@ help:
 	@echo "  M2 — Team Advisor"
 	@echo "  make ask TEAM=delivery-team Q=\"ทีมเราควรทำอะไรต่อ?\"    ถาม advisor จาก CLI"
 	@echo "  make provider         ดูว่าตอนนี้ใช้ LLM provider ตัวไหน"
+	@echo "  make eval [P=offline,claude,chatgpt]  เทียบ provider ด้วยชุดคำถามทดสอบ"
 	@echo ""
 	@echo ""
 	@echo "  M3 — GitHub Intelligence"
@@ -107,6 +108,9 @@ work:
 
 ask:
 	@$(PY) -m ecosystem_graph.cli_ask --team "$(TEAM)" --question "$(Q)"
+
+eval:
+	@$(PY) -m ecosystem_graph.evaluation "$(or $(P),offline)" $(if $(SAVE),--save,)
 
 provider:
 	@$(PY) -c "from ecosystem_graph.llm import get_provider; p=get_provider(); print(f'provider={p.name} model={p.model}')"

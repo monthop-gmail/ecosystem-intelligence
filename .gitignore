@@ -29,3 +29,6 @@ build/
 # Logs & temp
 *.log
 tmp/
+
+# ผลรัน evaluation — เป็น artifact ไม่ใช่ source
+evaluation/last-run.json

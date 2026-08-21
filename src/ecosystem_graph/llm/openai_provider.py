@@ -36,6 +36,7 @@ class OpenAIProvider:
                 "ต้องตั้ง ECOSYSTEM_OPENAI_MODEL — provider นี้ไม่มี default "
                 "เพราะ model id ของ OpenAI ต่างกันตามบัญชีและเปลี่ยนบ่อย"
             )
+        self.last_usage: dict[str, Any] | None = None
 
     def complete_json(self, *, stable_system: str, volatile_context: str,
                       question: str, schema: dict[str, Any],
@@ -64,11 +65,29 @@ class OpenAIProvider:
         except o.AuthenticationError as e:
             raise LLMError("OPENAI_API_KEY ไม่ถูกต้องหรือยังไม่ได้ตั้ง") from e
         except o.RateLimitError as e:
-            raise LLMError("โดน rate limit ของ OpenAI — ลองใหม่ภายหลัง") from e
+            # 429 ของ OpenAI ใช้ทั้งกับการถูก throttle และกับโควตาหมด
+            # สองอย่างนี้ต้องบอกต่างกัน — อันหนึ่งรอแล้วหาย อีกอันรอเท่าไหร่ก็ไม่หาย
+            code = ((getattr(e, "body", None) or {}).get("code")
+                    if isinstance(getattr(e, "body", None), dict) else None)
+            if code == "insufficient_quota":
+                raise LLMError(
+                    "บัญชี OpenAI ไม่มีโควตาเหลือ (insufficient_quota) — "
+                    "ไม่ใช่การถูก throttle รอไปก็ไม่หาย ต้องเติมเครดิตหรือแก้ billing"
+                ) from e
+            raise LLMError("โดน rate limit ของ OpenAI — รอสักครู่แล้วลองใหม่") from e
         except o.APIStatusError as e:
             raise LLMError(f"OpenAI ตอบ {e.status_code}") from e
         except o.APIConnectionError as e:
             raise LLMError("ต่อ OpenAI ไม่ได้ — ตรวจเน็ต") from e
+
+        u = getattr(response, "usage", None)
+        self.last_usage = {
+            "input_tokens": getattr(u, "input_tokens", 0) or 0,
+            "output_tokens": getattr(u, "output_tokens", 0) or 0,
+            "cache_read": getattr(getattr(u, "input_tokens_details", None),
+                                  "cached_tokens", 0) or 0,
+            "cache_write": 0,
+        } if u else None
 
         text = getattr(response, "output_text", None)
         if not text:
