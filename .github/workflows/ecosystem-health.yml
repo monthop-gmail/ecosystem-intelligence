@@ -1,0 +1,57 @@
+name: ecosystem health
+
+# ตรวจสภาพ ecosystem จากของจริงทุกวัน
+#
+# DB ของ job นี้เป็นของชั่วคราว — สร้างใหม่ทุกครั้ง ไม่ได้เก็บสถานะข้ามรอบ
+# สิ่งที่เก็บคือ **รายงาน** ใน job summary ไม่ใช่ข้อมูล
+# ถ้าวันหนึ่งต้องการ state ที่อยู่ข้ามรอบ ต้อง deploy จริง (ดู docs/deploy.md)
+#
+# job นี้ไม่เขียนอะไรกลับเข้า repo และไม่คอมเมนต์ที่ไหน
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ecosystem
+          POSTGRES_PASSWORD: ecosystem
+          POSTGRES_DB: ecosystem
+        ports: ["55434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ecosystem -d ecosystem"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      ECOSYSTEM_DSN: postgresql://ecosystem:ecosystem@localhost:55434/ecosystem
+      ECOSYSTEM_LLM_PROVIDER: offline
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+
+      - name: เตรียม graph
+        run: |
+          python -m ecosystem_graph.migrate
+          python -m ecosystem_graph.importer
+
+      - name: sync จาก GitHub
+        continue-on-error: true   # sync ล้มไม่ควรทำให้ไม่ได้รายงานเลย
+        run: python -m ecosystem_graph.github.sync
+
+      - name: รายงานสุขภาพ
+        run: python -m ecosystem_graph.health --remote >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardian ต้องไม่มี error
+        run: python -m ecosystem_graph.cli_guardian --remote

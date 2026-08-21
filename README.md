@@ -100,6 +100,13 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 ## เริ่มใช้งาน
 
 ```bash
+docker compose --profile app up -d --build   # db + api ในคอนเทนเนอร์
+curl localhost:8000/health
+```
+
+หรือรันจาก source
+
+```bash
 make install           # .venv + dependency
 cp .env.example .env
 
@@ -118,6 +125,7 @@ make impact PR=agent-platform#35        # วิเคราะห์ PR จา�
 make sync        # ดึง issue/PR จาก GitHub เข้า graph (incremental)
 make work        # ตอนนี้ใครทำอะไรอยู่ + งานซ้ำข้ามทีม
 make ask TEAM=delivery-team Q="ทีมเราควรทำอะไรต่อ?"   # ถาม advisor
+make health      # รายงานสุขภาพ ecosystem (CI รันทุกวัน)
 make provider    # ดูว่าตอนนี้ใช้ LLM ตัวไหน
 make test        # unit test — ไม่ต้องมี DB (ที่ต้องใช้ DB จะข้ามเอง)
 make test-all    # ทั้งหมด
@@ -179,6 +187,7 @@ curl localhost:8000/graph/cycles                         # มี circular depen
 | [`docs/github.md`](docs/github.md) | GitHub sync, declared vs in-progress, งานซ้ำข้ามทีม |
 | [`docs/impact.md`](docs/impact.md) | dependency graph, breaking detection, ลำดับการประสาน |
 | [`docs/guardian.md`](docs/guardian.md) | กฎ 14 ข้อ, manifest drift, การรีวิว PR |
+| [`docs/deploy.md`](docs/deploy.md) | Dockerfile, compose profile, ทำไม migration ไม่รันเองตอนบูต |
 | [`guardian.yaml`](guardian.yaml) | เปิด/ปิด Guardian รายrepo — **default ปิดทั้งหมด** |
 | [`evaluation/questions.yaml`](evaluation/questions.yaml) | ชุดคำถามทดสอบ + คำตอบที่คาดหวัง |
 | [`docs/openapi.json`](docs/openapi.json) | OpenAPI spec — CI ตรวจว่าตรงกับโค้ดเสมอ |

@@ -18,5 +18,22 @@ services:
       timeout: 3s
       retries: 30
 
+  # profile app — ไม่ขึ้นมาด้วย make up ปกติ (นั่นยก DB อย่างเดียว)
+  #   docker compose --profile app up -d --build
+  api:
+    profiles: ["app"]
+    build: .
+    container_name: ecosystem-graph-api
+    environment:
+      ECOSYSTEM_DSN: postgresql://${POSTGRES_USER:-ecosystem}:${POSTGRES_PASSWORD:-ecosystem}@db:5432/${POSTGRES_DB:-ecosystem}
+      ECOSYSTEM_LLM_PROVIDER: ${ECOSYSTEM_LLM_PROVIDER:-offline}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   ecosystem-graph-data:

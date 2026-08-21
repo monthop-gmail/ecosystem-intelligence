@@ -25,7 +25,18 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 
 def _files() -> list[Path]:
-    return sorted(MIGRATIONS.glob("*.sql"))
+    """หาไฟล์ migration — **ไม่เจอเลยคือ error ไม่ใช่ 'ไม่มีอะไรใหม่'**
+
+    ตอนรันใน container ครั้งแรก path ผิดทำให้ glob ได้ลิสต์ว่าง แล้วรายงานว่า
+    สำเร็จทั้งที่ไม่ได้สร้างตารางอะไรเลย — app เลยไปพังทีหลังในที่ที่หาสาเหตุยากกว่า
+    """
+    if not MIGRATIONS.is_dir():
+        raise SystemExit(f"❌ ไม่มีโฟลเดอร์ migration ที่ {MIGRATIONS} "
+                         f"— ตั้ง ECOSYSTEM_ROOT ให้ถูก")
+    files = sorted(MIGRATIONS.glob("*.sql"))
+    if not files:
+        raise SystemExit(f"❌ ไม่มีไฟล์ .sql ใน {MIGRATIONS} — ตั้ง ECOSYSTEM_ROOT ให้ถูก")
+    return files
 
 
 def status() -> list[tuple[str, str]]:

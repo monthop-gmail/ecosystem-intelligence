@@ -250,7 +250,8 @@ def check_github(res: Result, doc: dict) -> None:
                     f"{r['default_branch']!r} แต่ของจริงคือ {branch!r}")
 
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+from .config import ROOT  # noqa: E402 — ต้องอยู่หลัง import yaml ด้านบน
+
 DEFAULT_PATH = ROOT / "ecosystem.yaml"
 SCHEMA_PATH = ROOT / "schema" / "ecosystem.schema.json"
 

@@ -4,8 +4,32 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_DSN = "postgresql://ecosystem:ecosystem@localhost:55434/ecosystem"
+
+
+def _detect_root() -> Path:
+    """หาโฟลเดอร์ที่มีไฟล์ข้อมูล (ecosystem.yaml, migrations/, schema/)
+
+    เดิมคำนวณจาก __file__ ขึ้นไปสามชั้น ซึ่งถูกเฉพาะตอนรันจาก src layout
+    พอ pip install จริงโมดูลไปอยู่ใน site-packages แล้วสามชั้นขึ้นไปกลายเป็น
+    /usr/local/lib/python3.12 — migrate เลย glob ไม่เจอไฟล์ไหนเลยแล้ว
+    **รายงานว่าสำเร็จ** ทั้งที่ไม่ได้ทำอะไร ซึ่งอันตรายกว่าพัง
+
+    ลำดับ: ตัวแปร env → layout ของ repo → cwd
+    """
+    env = os.environ.get("ECOSYSTEM_ROOT")
+    if env:
+        return Path(env).resolve()
+    repo = Path(__file__).resolve().parent.parent.parent
+    if (repo / "ecosystem.yaml").exists():
+        return repo
+    cwd = Path.cwd()
+    if (cwd / "ecosystem.yaml").exists():
+        return cwd
+    return repo  # ปล่อยให้พังพร้อมชื่อ path จริง ดีกว่าเดาเงียบ ๆ
+
+
+ROOT = _detect_root()
 
 
 def _load_dotenv() -> None:

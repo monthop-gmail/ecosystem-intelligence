@@ -1,7 +1,7 @@
 PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
 .PHONY: help install validate validate-github up down schema import import-dry \
-        registry api openapi sync work graph mermaid impact guardian guardian-pr \
+        registry api openapi sync work graph mermaid impact guardian guardian-pr health \
         ask provider eval test test-all fmt
 
 help:
@@ -42,6 +42,10 @@ help:
 	@echo "  make guardian [REMOTE=1]              ตรวจทั้ง ecosystem"
 	@echo "  make guardian-pr PR=agent-platform#33 [POST=1]   รีวิว PR"
 	@echo ""
+	@echo ""
+	@echo "  รายงานรวม"
+	@echo "  make health [REMOTE=1] รายงานสุขภาพ ecosystem เป็น markdown"
+	@echo ""
 	@echo "  make test             unit test — ไม่ต้องมี DB"
 	@echo "  make test-all         test ทั้งหมด — ต้องมี DB"
 	@echo "  make down             ปิด DB (ข้อมูลยังอยู่)"
@@ -80,6 +84,9 @@ api:
 
 openapi:
 	@$(PY) tools/export_openapi.py
+
+health:
+	@$(PY) -m ecosystem_graph.health $(if $(REMOTE),--remote,)
 
 guardian:
 	@$(PY) -m ecosystem_graph.cli_guardian $(if $(REMOTE),--remote,)
