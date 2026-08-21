@@ -128,6 +128,18 @@ field `semantics_owner` มีอยู่เพราะ ecosystem นี้ม
 > แต่ก็จงใจ**ไม่**แกล้งว่ามีหลายคน — validator จะเตือนเมื่อทุกทีมมี member ชุดเดียวกัน
 > เพื่อไม่ให้ข้อมูลนี้ดูน่าเชื่อกว่าที่มันเป็น
 
+### 1.6 อะไร **ไม่ใช่** entity นั้น — กันไม่ให้ model บวม
+
+ทุก entity ต้องมีเส้นตัด ไม่งั้นอีกหกเดือนจะมีอะไรก็ได้อยู่ในนี้
+
+| Entity | ไม่ใช่ |
+| --- | --- |
+| `plane` | ไม่ใช่ repo และไม่ใช่โฟลเดอร์ — `agent-platform/planes/` เก็บ**เอกสารขอบเขต** ไม่ใช่ code (ADR-0001) · plane เพิ่มใหม่ไม่ได้จากที่นี่ ต้องไปแก้ที่ `agent-platform` |
+| `component` | ไม่ใช่ package ภายใน repo, ไม่ใช่โฟลเดอร์, ไม่ใช่ service ที่ deploy คู่กันเสมอ — **เกณฑ์ตัด: ถ้ามันไม่มีสิทธิ์มี repo เป็นของตัวเองได้ในอนาคต มันไม่ใช่ component** |
+| `contract` | ไม่ใช่ API ภายในของ component และไม่ใช่ทุก interface — เป็น contract ต่อเมื่อผ่านเกณฑ์ 4 ข้อของ ADR-0012 (มีของเดิมตอบไม่ได้ · มี consumer ≥2 หรือ 1 ที่ใช้จริง+ระบุรายที่สองได้ · มี implementation จริง · มีเจ้าของ semantics ชัด) |
+| `repository` | ไม่ใช่ทุก repo ใน account — เฉพาะ repo ที่มี component ของ ecosystem นี้อยู่ (`llm-gateway`, `botforge`, workshop ต่าง ๆ ไม่อยู่ในนี้จนกว่าจะมี component) |
+| `team` | ไม่ใช่คน และไม่ใช่ GitHub team — เป็น**หน่วยรับผิดชอบ** ที่ยังคงอยู่แม้คนเปลี่ยน · คนคือ `members` |
+
 ---
 
 ## 2. Relationships
@@ -206,6 +218,43 @@ conformance:
 
 > **กฎ 90 วันเป็นของ ecosystem ไม่ใช่ของไฟล์** — `passing` ที่เก่าเกิน 90 วัน
 > ต้องถูกคำนวณเป็น `unknown` โดย validator ไม่ว่าไฟล์จะเขียนว่าอะไร
+
+### 2.3 Graph จริงจาก 3 repo ที่มีอยู่
+
+ไม่ใช่ตัวอย่างสมมติ — ทุกเส้นในนี้ตรวจกับ repo จริงแล้วเมื่อ 2026-08-21
+
+```text
+                          agent-platform  (platform-team)
+                          เจ้าของ contract ทั้ง 15 ตัว
+                                    │ exposes
+        ┌───────────────────────────┼───────────────────────────┐
+        │                           │                           │
+   identity/v1                 execution/v1                 tool/v1
+   policy/v1                   approval/v1 🔗                    │
+   error/v1                    event/v1   🔗                     │
+        │                           │                           │
+        │ consumes                  │ consumes                  │ expected
+        ▼                           ▼                           ▼
+  care-agent-platform         devfactory-core            enterprise-knowledge
+  (care-team)                 (delivery-team)            (knowledge-team)
+  ✅ passing 2026-08-19       ✅ passing 2026-08-19       ⚠️ unknown — ไม่มี manifest
+  pin 7 contracts             pin 6 contracts            implements: knowledge plane
+                                    │
+                                    │ semantics_owner
+                                    ▼
+                          approval/v1 · event/v1  🔗
+                          (รูปร่างเป็นของ agent-platform
+                           ความหมายเป็นของ devfactory-core — ADR-0006 C2)
+```
+
+**อ่านอะไรได้จาก graph นี้บ้าง** — และนี่คือเหตุผลที่ M0 ต้องมาก่อน M4
+
+```text
+เปลี่ยน execution/v1   → กระทบ devfactory-core เท่านั้น (pin 3a01ab9)
+เปลี่ยน tool/v1        → ไม่กระทบใครที่ยืนยันแล้ว แต่ enterprise-knowledge รออยู่
+เปลี่ยน approval/v1    → ต้องไปแก้ที่ devfactory-core ก่อน ไม่ใช่ที่ agent-platform
+ปิด identity/v1        → ไม่ได้ มี consumer 2 รายที่ passing อยู่
+```
 
 ---
 
