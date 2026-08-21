@@ -97,10 +97,12 @@ jobs:
 
       # ตัวอย่างที่ commit ไว้ต้องตรงกับสิ่งที่ emitter ผลิตจริง — ไม่งั้นปลายทาง
       # จะเขียนเทสต์ยิงกับไฟล์ที่ไม่ตรงกับของจริง ซึ่งแย่กว่าไม่มีตัวอย่างเลย
-      - name: sample.jsonl ยังตรงกับ emitter
-        run: |
-          make emit-sample
-          git diff --exit-code integration/events/sample.jsonl
+      #
+      # เทียบ "รูปร่าง" ไม่ใช่ "ไบต์" — เนื้อหาของคำแนะนำขึ้นกับสภาพ ecosystem
+      # ตอนนั้น (อ้าง issue ที่เปิดค้าง · บอกว่าขยับล่าสุดกี่วันก่อน) ซึ่งใน CI
+      # ที่ยังไม่ได้ sync ก็ไม่มีข้อมูลนั้นเลย · เทียบไบต์จะแดงตลอดโดยไม่มีอะไรผิดจริง
+      - name: sample.jsonl ยังตรงรูปร่างกับ emitter
+        run: python tools/check_sample_shape.py
 
       - name: ปล่อย event สดเป็น artifact ให้ปลายทางดึงไปดู
         run: |

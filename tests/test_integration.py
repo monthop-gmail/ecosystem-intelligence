@@ -256,3 +256,23 @@ def test_sample_เป็น_jsonl_ไม่ใช่_json_ก้อนเดี
     assert len(lines) > 1
     for line in lines:
         json.loads(line)  # แต่ละบรรทัดต้อง parse ได้เอง
+
+
+def test_shape_check_จับได้เมื่อ_event_ใบเดียวขาด_key(tmp_path, monkeypatch):
+    """รอบแรกใช้ union ทั้งไฟล์แล้วจับไม่ได้ — ใบอื่นยังมี key นั้นอยู่ union เลยไม่เปลี่ยน"""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "check_sample_shape", ROOT / "tools" / "check_sample_shape.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    full = [
+        {"event_type": "A", "subject_type": "record", "source": {"kind": "external"},
+         "metadata": {"record_type": "r", "x": 1}},
+        {"event_type": "A", "subject_type": "record", "source": {"kind": "external"},
+         "metadata": {"record_type": "r", "x": 2}},
+    ]
+    missing = [full[0], {**full[1], "metadata": {"record_type": "r"}}]
+    assert mod.shape(full) != mod.shape(missing), \
+        "ใบเดียวขาด key ต้องจับได้ ไม่ใช่ถูกกลบด้วยใบอื่น"
