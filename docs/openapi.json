@@ -1023,6 +1023,270 @@
           }
         }
       }
+    },
+    "/components/{component_id}/graph": {
+      "get": {
+        "tags": [
+          "impact"
+        ],
+        "summary": "ต้นไม้ dependency ของ component — อ่านด้วยตาได้",
+        "operationId": "component_graph_components__component_id__graph_get",
+        "parameters": [
+          {
+            "name": "component_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Component Id"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(up|down)$",
+              "description": "down = ใครกระทบ · up = ขึ้นกับใคร",
+              "default": "down",
+              "title": "Direction"
+            },
+            "description": "down = ใครกระทบ · up = ขึ้นกับใคร"
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 1,
+              "default": 5,
+              "title": "Depth"
+            }
+          },
+          {
+            "name": "fmt",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(json|ascii)$",
+              "default": "json",
+              "title": "Fmt"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Component Graph Components  Component Id  Graph Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/graph/mermaid": {
+      "get": {
+        "tags": [
+          "impact"
+        ],
+        "summary": "graph ทั้ง ecosystem เป็น mermaid",
+        "operationId": "graph_mermaid_graph_mermaid_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Graph Mermaid Graph Mermaid Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/components/{component_id}/change-impact": {
+      "get": {
+        "tags": [
+          "impact"
+        ],
+        "summary": "เปลี่ยน component นี้แล้วกระทบใคร",
+        "operationId": "component_change_components__component_id__change_impact_get",
+        "parameters": [
+          {
+            "name": "component_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Component Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Component Change Components  Component Id  Change Impact Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contracts/{contract_name}/v{version}/cross-team": {
+      "get": {
+        "tags": [
+          "impact"
+        ],
+        "summary": "ผลกระทบข้ามทีมครบทุกด้าน + ลำดับการประสาน + ร่าง issue",
+        "operationId": "contract_cross_team_contracts__contract_name__v_version__cross_team_get",
+        "parameters": [
+          {
+            "name": "contract_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contract Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(breaking|non-breaking|unsure)$",
+              "default": "unsure",
+              "title": "Level"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Contract Cross Team Contracts  Contract Name  V Version  Cross Team Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pulls/{repository}/{number}/analysis": {
+      "get": {
+        "tags": [
+          "impact"
+        ],
+        "summary": "วิเคราะห์ PR จาก diff จริง — breaking / non-breaking / ไม่แน่ใจ",
+        "operationId": "pull_analysis_pulls__repository___number__analysis_get",
+        "parameters": [
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repository"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Pull Analysis Pulls  Repository   Number  Analysis Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

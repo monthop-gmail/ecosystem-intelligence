@@ -1,7 +1,7 @@
 PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
 .PHONY: help install validate validate-github up down schema import import-dry \
-        registry api openapi sync work ask provider test test-all fmt
+        registry api openapi sync work graph mermaid impact ask provider test test-all fmt
 
 help:
 	@echo "  make install          ติดตั้ง dependency ลง .venv"
@@ -27,6 +27,13 @@ help:
 	@echo "  M3 — GitHub Intelligence"
 	@echo "  make sync             ดึง issue/PR/commit จาก GitHub เข้า graph (incremental)"
 	@echo "  make work             ตอนนี้ใครทำอะไรอยู่ + งานซ้ำข้ามทีม"
+	@echo ""
+	@echo ""
+	@echo "  M4 — Impact Analysis"
+	@echo "  make graph COMPONENT=agent-platform [DIR=down]   ต้นไม้ dependency"
+	@echo "  make impact CONTRACT=approval/v1 [LEVEL=breaking] ผลกระทบข้ามทีม + ร่าง issue"
+	@echo "  make impact PR=agent-platform#35                  วิเคราะห์ PR จาก diff จริง"
+	@echo "  make mermaid          graph ทั้ง ecosystem เป็น mermaid"
 	@echo ""
 	@echo "  make test             unit test — ไม่ต้องมี DB"
 	@echo "  make test-all         test ทั้งหมด — ต้องมี DB"
@@ -66,6 +73,19 @@ api:
 
 openapi:
 	@$(PY) tools/export_openapi.py
+
+graph:
+	@$(PY) -m ecosystem_graph.cli_impact --graph "$(COMPONENT)" --direction "$(or $(DIR),down)"
+
+mermaid:
+	@$(PY) -m ecosystem_graph.cli_impact --mermaid
+
+impact:
+ifdef PR
+	@$(PY) -m ecosystem_graph.cli_impact --pr "$(PR)"
+else
+	@$(PY) -m ecosystem_graph.cli_impact --contract "$(CONTRACT)" --level "$(or $(LEVEL),unsure)"
+endif
 
 sync:
 	@$(PY) -m ecosystem_graph.github.sync

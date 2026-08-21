@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from . import advisor
+from . import impact as impact_mod
 from . import queries as q
 from .github import work as gh_work
 from .db import connect
@@ -239,3 +240,56 @@ def touching_prs(conn=Depends(db),
                  contract: str | None = Query(None, description="เช่น execution/v1")) -> dict:
     rows = gh_work.contract_prs(conn, contract)
     return {"count": len(rows), "pull_requests": rows}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Impact Analysis (M4) — deterministic ล้วน ไม่เรียก LLM
+#
+# ต่างจาก /coordination ของ M2 ตรงที่อันนั้นเป็น "ความเห็นของ model"
+# ส่วนกลุ่มนี้เป็น "ผลจากกฎ" — ใช้เทียบกันได้ว่า model ตอบตรงกับกฎไหม
+# ─────────────────────────────────────────────────────────────────────────
+@app.get("/components/{component_id}/graph", tags=["impact"],
+         summary="ต้นไม้ dependency ของ component — อ่านด้วยตาได้")
+def component_graph(
+    component_id: str,
+    direction: str = Query("down", pattern="^(up|down)$",
+                           description="down = ใครกระทบ · up = ขึ้นกับใคร"),
+    depth: int = Query(5, ge=1, le=10),
+    fmt: str = Query("json", pattern="^(json|ascii)$"),
+    conn=Depends(db),
+) -> dict:
+    _found(q.get_component(conn, component_id), "component", component_id)
+    tree = impact_mod.dependency_tree(conn, component_id, direction=direction, depth=depth)
+    return {"component": component_id, "direction": direction,
+            "tree": tree, "ascii": impact_mod.render_tree(tree) if fmt == "ascii" else None}
+
+
+@app.get("/graph/mermaid", tags=["impact"], summary="graph ทั้ง ecosystem เป็น mermaid")
+def graph_mermaid(conn=Depends(db)) -> dict:
+    return {"format": "mermaid", "diagram": impact_mod.render_mermaid(conn)}
+
+
+@app.get("/components/{component_id}/change-impact", tags=["impact"],
+         summary="เปลี่ยน component นี้แล้วกระทบใคร")
+def component_change(component_id: str, conn=Depends(db)) -> dict:
+    return _found(impact_mod.component_change(conn, component_id), "component", component_id)
+
+
+@app.get("/contracts/{contract_name}/v{version}/cross-team", tags=["impact"],
+         summary="ผลกระทบข้ามทีมครบทุกด้าน + ลำดับการประสาน + ร่าง issue")
+def contract_cross_team(
+    contract_name: str, version: int,
+    level: str = Query("unsure", pattern="^(breaking|non-breaking|unsure)$"),
+    conn=Depends(db),
+) -> dict:
+    cid = f"{contract_name}/v{version}"
+    return _found(impact_mod.cross_team(conn, cid, level=level), "contract", cid)
+
+
+@app.get("/pulls/{repository}/{number}/analysis", tags=["impact"],
+         summary="วิเคราะห์ PR จาก diff จริง — breaking / non-breaking / ไม่แน่ใจ")
+def pull_analysis(repository: str, number: int, conn=Depends(db)) -> dict:
+    result = impact_mod.analyze_pr(conn, repository, number)
+    if not result["available"]:
+        raise HTTPException(status_code=502, detail=result["reason"])
+    return result

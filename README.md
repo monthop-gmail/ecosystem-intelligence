@@ -70,7 +70,7 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | **M1** ✅ | Ecosystem Graph | PostgreSQL, Ecosystem Graph API, import ecosystem definition, repository registry |
 | **M2** ✅ | Team Advisor | Team context, Ask API, LLM reasoning, recommended work ← **MVP อยู่ตรงนี้** |
 | **M3** ✅ | GitHub Intelligence | Repository sync, issues, PRs, current work detection |
-| **M4** | Impact Analysis | Dependency graph, change analysis, cross-team impact |
+| **M4** ✅ | Impact Analysis | Dependency graph, change analysis, cross-team impact |
 | **M5** | Architecture Guardian | Architecture / contract validation, PR & issue review |
 | **M6** | Delivery Integration | เชื่อม agent-platform, devfactory-core, delivery orchestrator |
 
@@ -91,7 +91,8 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | **M1 — Ecosystem Graph** | ✅ เสร็จ — PostgreSQL + import + read-only API + registry |
 | **M2 — Team Advisor** | ✅ เสร็จ — **MVP** · DoD scenario ผ่าน |
 | **M3 — GitHub Intelligence** | ✅ เสร็จ — sync issue/PR + current work detection |
-| **M4 — Impact Analysis** | ⏭️ ถัดไป |
+| **M4 — Impact Analysis** | ✅ เสร็จ — dependency graph + breaking detection + ร่าง issue |
+| **M5 — Architecture Guardian** | ⏭️ ถัดไป |
 
 ครอบคลุมของจริง **15 contracts · 11 planes · 14 components · 14 repositories · 7 teams**
 
@@ -108,6 +109,9 @@ make api               # http://localhost:8000/docs
 ```
 
 ```bash
+make graph COMPONENT=agent-platform     # ต้นไม้ dependency
+make impact CONTRACT=approval/v1 LEVEL=breaking
+make impact PR=agent-platform#35        # วิเคราะห์ PR จาก diff จริง
 make sync        # ดึง issue/PR จาก GitHub เข้า graph (incremental)
 make work        # ตอนนี้ใครทำอะไรอยู่ + งานซ้ำข้ามทีม
 make ask TEAM=delivery-team Q="ทีมเราควรทำอะไรต่อ?"   # ถาม advisor
@@ -170,6 +174,7 @@ curl localhost:8000/graph/cycles                         # มี circular depen
 | [`src/ecosystem_graph/`](src/ecosystem_graph/) | validate · migrate · import · queries · api · registry |
 | [`docs/llm.md`](docs/llm.md) | ชั้น LLM — provider, prompt caching, grounding |
 | [`docs/github.md`](docs/github.md) | GitHub sync, declared vs in-progress, งานซ้ำข้ามทีม |
+| [`docs/impact.md`](docs/impact.md) | dependency graph, breaking detection, ลำดับการประสาน |
 | [`evaluation/questions.yaml`](evaluation/questions.yaml) | ชุดคำถามทดสอบ + คำตอบที่คาดหวัง |
 | [`docs/openapi.json`](docs/openapi.json) | OpenAPI spec — CI ตรวจว่าตรงกับโค้ดเสมอ |
 
