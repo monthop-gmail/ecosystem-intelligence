@@ -86,9 +86,11 @@ rules:
     check: contracts_without_consumer
     title: contract ที่ยังไม่มีใคร pin
     why: >-
-      contract ที่ไม่มี consumer ปิดเวอร์ชันได้โดยไม่กระทบใคร — แต่ถ้ามีทีมที่
-      ประกาศเจตนาจะใช้ค้างอยู่ การปิดจะทำให้แผนเขาพัง
-    fix: หา consumer รายที่สองตามเกณฑ์รับ contract หรือปิดเวอร์ชันทิ้ง
+      contract ที่ไม่มีใคร pin **อาจ** ปิดได้ — แต่ต้องดูสองอย่างก่อน
+      ทีมที่ประกาศเจตนาจะใช้ค้างอยู่ และ contract อื่นที่ $ref ถึง
+      การนับแค่ความสัมพันธ์ใน ecosystem.yaml มองไม่เห็น $ref ระหว่าง contract
+      ด้วยกันเอง และเคยทำให้รายงานบอกว่าปิดได้ทั้งที่ปิดแล้วพัง
+    fix: หา consumer รายที่สองตามเกณฑ์รับ contract หรือเสนอถอนที่ agent-platform
     source: ADR-0012
 
   - id: derived-contract-semantics-missing

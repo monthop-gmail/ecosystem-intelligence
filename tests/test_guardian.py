@@ -102,12 +102,16 @@ def test_plane_ที่ยังไม่มีคนทำถูกเตื�
 
 
 # ── #22 Contract ───────────────────────────────────────────────────────
-def test_contract_ที่ไม่มี_consumer_แยกได้ว่าปิดได้หรือไม่(conn, rules):
+def test_contract_ที่มีคนรอใช้ปิดไม่ได้(conn, rules):
+    """เดิมเทสต์นี้ยืนยันว่า mcp/v1 ปิดได้ — ซึ่งผิด และเป็นความเชื่อที่ทำให้
+    รายงานฉบับ 2026-08-22 แนะนำให้ปิด contract ที่ปิดแล้วพัง
+    ตอนนี้ต้องดูครบสามทาง: ใครรอใช้ · ใคร $ref ถึง · plane ไหนจองไว้"""
     found = {f["subject"]: f for f in
              checks.contracts_without_consumer(conn, rules["contract-without-consumer"])}
-    assert found["mcp/v1"]["closable"] is True
     assert found["tool/v1"]["closable"] is False, "มีคนประกาศเจตนาจะใช้ ปิดไม่ได้"
     assert "enterprise-knowledge" in found["tool/v1"]["detail"]
+    # ตัวที่ไม่มีคนรอ ต้องไม่ตอบว่าปิดได้ตอนที่ยังตรวจ $ref ไม่ได้
+    assert found["mcp/v1"]["closable"] is None
 
 
 def test_conformance_ที่เก่าเกินถูกจับ(conn, rules, loaded_db):
@@ -261,3 +265,58 @@ def test_backstop_ที่เลยกำหนดแล้วต้องเ�
     found = mod.blocking_past_backstop(conn, rules["blocking-past-backstop"])
     assert {f["subject"] for f in found} == {"เลยกำหนด"}
     assert "http://x/1" in found[0]["detail"]
+
+
+# ── contract ที่ "ไม่มีใครใช้" ต้องดูให้ครบสามทาง ─────────────────────
+def test_contract_ที่มี_ref_ถึงห้ามบอกว่าปิดได้(conn, rules):
+    """รายงาน 2026-08-22 บอกว่า artifact/v1 กับ model/v1 ปิดได้ ทั้งที่
+    execution/v1 และ event/v1 $ref ถึง — ปิดจริง schema ของ consumer 3 ราย
+    resolve ไม่ได้ · นี่คือกรณีที่ check ผ่านทั้งที่คำตอบผิดและอันตราย"""
+    class FakeGH:
+        owner = "monthop-gmail"
+
+        def api(self, path, **kw):
+            import base64
+            if path.endswith("contents/contracts"):
+                return [{"type": "dir", "name": n} for n in ("event", "model", "mcp")]
+            if path.endswith("/v1"):
+                name = path.split("/contracts/")[1].split("/")[0]
+                return [{"name": f"{name}.schema.yaml"}]
+            name = path.split("/contracts/")[1].split("/")[0]
+            body = ("$ref: https://schemas.agent-platform.internal/model/v1/x.yaml#/$defs/A"
+                    if name == "event" else "type: object")
+            return {"content": base64.b64encode(body.encode()).decode()}
+
+    graph = checks.contract_ref_graph(FakeGH())
+    assert graph["model/v1"] == {"event/v1"}
+
+    found = {f["subject"]: f for f in checks.contracts_without_consumer(
+        conn, rules["contract-without-consumer"], gh=FakeGH())}
+    assert found["model/v1"]["closable"] is False
+    assert "event/v1" in found["model/v1"]["detail"]
+
+
+def test_ไม่มี_gh_ต้องบอกว่ายังไม่ได้ตรวจ_ไม่ใช่บอกว่าปิดได้(conn, rules):
+    """local ตรวจ $ref ไม่ได้ — ต้องตอบว่า 'ยังไม่รู้' ไม่ใช่ 'ปิดได้'"""
+    found = {f["subject"]: f for f in checks.contracts_without_consumer(
+        conn, rules["contract-without-consumer"], gh=None)}
+    unknown = [f for f in found.values() if f["closable"] is None]
+    assert unknown, "ต้องมีอย่างน้อยหนึ่งตัวที่ตอบว่ายังไม่ได้ตรวจ"
+    assert all("ยังไม่ได้ตรวจ" in f["detail"] for f in unknown)
+
+
+def test_contract_ที่_plane_จองไว้ห้ามบอกว่าปิดได้(conn, rules):
+    """mcp/v1 ไม่มีใคร pin และไม่มี $ref — แต่ plane tools จองไว้
+    ปิดคือการตัดสินแทนคนที่จะมา implement plane นั้น"""
+    class NoRefGH:
+        owner = "monthop-gmail"
+
+        def api(self, path, **kw):
+            if path.endswith("contents/contracts"):
+                return []
+            return []
+
+    found = {f["subject"]: f for f in checks.contracts_without_consumer(
+        conn, rules["contract-without-consumer"], gh=NoRefGH())}
+    assert found["mcp/v1"]["closable"] is False
+    assert "tools" in found["mcp/v1"]["detail"]

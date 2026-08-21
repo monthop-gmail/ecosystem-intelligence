@@ -9,6 +9,7 @@ finding = {rule, severity, title, subject, detail, fix, source}
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Callable
 
@@ -30,7 +31,8 @@ ARTIFACT_CONTRACTS = {"artifact/v1"}
 CONFORMANCE_MAX_AGE_DAYS = 90
 
 # check ที่ต้องอ่านจาก repo อื่น — ข้ามได้ แต่ต้องข้ามอย่างมีเสียง
-REMOTE_CHECKS = {"manifest_drift", "semantics_version_drift", "pinned_contract_stale"}
+REMOTE_CHECKS = {"manifest_drift", "semantics_version_drift", "pinned_contract_stale",
+                 "contracts_without_consumer"}
 
 
 def load_rules() -> dict[str, dict[str, Any]]:
@@ -124,16 +126,94 @@ def planes_without_implementation(conn, rule) -> list[dict]:
 # ─────────────────────────────────────────────────────────────────────────
 # #22 Contract
 # ─────────────────────────────────────────────────────────────────────────
-def contracts_without_consumer(conn, rule) -> list[dict]:
+REF_URL = re.compile(r"schemas\.agent-platform\.internal/([a-z0-9-]+)/(v\d+)/")
+
+
+def contract_ref_graph(gh: GitHubClient, authority: str = "agent-platform") -> dict[str, set[str]]:
+    """contract ไหนถูก contract อื่น $ref ถึงบ้าง
+
+    `event/v1` $ref ไปหา `identity` `policy` `capability` `model` `error` —
+    contract ที่ไม่มี consumer โดยตรงจึงยัง "มีคนใช้" ผ่านสายนี้ได้
+    ตัดทิ้งแล้ว schema ของคนอื่น resolve ไม่ได้ทั้งชุด
+    """
+    referenced: dict[str, set[str]] = {}
+    dirs = gh.api(f"repos/{gh.owner}/{authority}/contents/contracts")
+    for entry in dirs:
+        if entry["type"] != "dir":
+            continue
+        name = entry["name"]
+        try:
+            files = gh.api(f"repos/{gh.owner}/{authority}/contents/contracts/{name}/v1")
+        except GitHubError:
+            continue
+        for f in files:
+            if not f["name"].endswith((".yaml", ".yml")):
+                continue
+            import base64
+            blob = gh.api(f"repos/{gh.owner}/{authority}/contents/"
+                          f"contracts/{name}/v1/{f['name']}")
+            text = base64.b64decode(blob["content"]).decode("utf-8", "replace")
+            for m in REF_URL.finditer(text):
+                target = f"{m.group(1)}/{m.group(2)}"
+                if m.group(1) != name:
+                    referenced.setdefault(target, set()).add(f"{name}/v1")
+    return referenced
+
+
+def contracts_without_consumer(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
+    """contract ที่ไม่มีใคร pin — และ **ตรวจ $ref ก่อนบอกว่าปิดได้**
+
+    เดิม check นี้นับแค่ความสัมพันธ์ที่บันทึกใน ecosystem.yaml แล้วสรุปว่า "ปิดได้"
+    ซึ่งมองไม่เห็น $ref ระหว่าง contract ด้วยกันเอง — รายงานฉบับ 2026-08-22
+    จึงบอกว่า artifact/v1 และ model/v1 ปิดได้ ทั้งที่ execution/v1 และ event/v1
+    $ref ถึงทั้งคู่ · ปิดจริงจะทำให้ schema ของ consumer ที่ conform อยู่ 3 ราย
+    resolve ไม่ได้
+    """
+    referenced: dict[str, set[str]] | None = None
+    if gh is not None:
+        try:
+            referenced = contract_ref_graph(gh)
+        except Exception as e:  # noqa: BLE001
+            referenced = None
+            rule = {**rule, "_ref_error": str(e)[:100]}
+
+    # plane จอง contract ไว้ได้ก่อนมีคน implement — contract ที่ผูกกับ plane
+    # ที่ยังไม่มีเจ้าของ ไม่ใช่ contract ที่ไม่มีใครต้องการ
+    plane_of: dict[str, list[str]] = {}
+    for p in q.list_planes(conn):
+        for cid in p["contracts"]:
+            plane_of.setdefault(cid, []).append(p["id"])
+
     out = []
     for c in q.list_contracts(conn):
         if c["consumers"]:
             continue
         waiting = c["expected_by"]
-        detail = ("ยังไม่มีใคร pin"
-                  + (f" — แต่ {', '.join(waiting)} ประกาศเจตนาจะใช้ ปิดตอนนี้แผนเขาพัง"
-                     if waiting else " และไม่มีใครวางแผนจะใช้"))
-        out.append(_finding(rule, c["id"], detail, closable=not waiting))
+        by_ref = sorted(referenced.get(c["id"], set())) if referenced is not None else None
+        planes = plane_of.get(c["id"], [])
+
+        if waiting:
+            detail = f"ยังไม่มีใคร pin — แต่ {', '.join(waiting)} ประกาศเจตนาจะใช้ ปิดตอนนี้แผนเขาพัง"
+            closable = False
+        elif by_ref:
+            detail = (f"ไม่มีใคร pin โดยตรง แต่ {', '.join(by_ref)} $ref ถึง "
+                      f"— ปิดแล้ว schema ของเขา resolve ไม่ได้")
+            closable = False
+        elif referenced is None:
+            detail = ("ยังไม่มีใคร pin — **ยังไม่ได้ตรวจว่ามี contract อื่น $ref ถึงหรือเปล่า** "
+                      "ใส่ REMOTE=1 ก่อนสรุปว่าปิดได้")
+            closable = None
+        elif planes:
+            detail = (f"ไม่มีใคร pin และไม่มี contract ไหน $ref ถึง "
+                      f"— แต่ plane {', '.join(planes)} จองไว้ ยังไม่มีใคร implement "
+                      f"ปิดคือการตัดสินว่า plane นั้นจะไม่ใช้มัน")
+            closable = False
+        else:
+            detail = "ไม่มีใคร pin · ไม่มี $ref · ไม่มี plane จองไว้ — ไม่มีใครใช้จริง"
+            closable = True
+
+        out.append(_finding(rule, c["id"], detail, closable=closable,
+                            referenced_by=by_ref, reserved_by=planes or None))
     return out
 
 
@@ -349,6 +429,8 @@ def run_all(conn, *, include_remote: bool = False,
     rules = load_rules()
     findings: list[dict] = []
     ran, skipped = [], []
+    if include_remote and gh is None:
+        gh = GitHubClient()   # check ที่ต้องออกเน็ตต้องมี client จริง ไม่ใช่ None เงียบ ๆ
 
     for rule_id, rule in rules.items():
         check_name = rule.get("check")
@@ -357,7 +439,13 @@ def run_all(conn, *, include_remote: bool = False,
         fn = CHECKS[check_name]
         if check_name in REMOTE_CHECKS:
             if not include_remote:
-                skipped.append(rule_id)
+                # contracts_without_consumer ยังรันแบบ local ได้ — แต่จะบอกเองว่า
+                # ยังไม่ได้ตรวจ $ref · ที่เหลือข้ามไปเลยเพราะ local ทำอะไรไม่ได้
+                if check_name == "contracts_without_consumer":
+                    findings.extend(fn(conn, rule, gh=None))
+                    ran.append(rule_id)
+                else:
+                    skipped.append(rule_id)
                 continue
             findings.extend(fn(conn, rule, gh=gh))
         else:
