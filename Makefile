@@ -2,7 +2,7 @@ PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
 .PHONY: help install validate validate-github up down schema import import-dry \
         registry api openapi sync work graph mermaid impact guardian guardian-pr health \
-        conformance feedback emit \
+        conformance feedback emit emit-sample \
         ask provider eval test test-all fmt
 
 help:
@@ -48,7 +48,8 @@ help:
 	@echo "  M6 — Delivery Integration"
 	@echo "  make conformance      ตรวจว่า event ที่ปล่อยออกไป conform กับ event/v1"
 	@echo "  make feedback         เทียบ ecosystem.yaml กับของจริง แล้วเสนอส่วนต่าง"
-	@echo "  make emit TEAM=...    ดู event/v1 ที่จะปล่อยออกไป"
+	@echo "  make emit [TEAM=...]  ปล่อย event/v1 (ไม่ใส่ TEAM = ทุกทีม + guardian)"
+	@echo "  make emit-sample      สร้างตัวอย่างที่ตรึงเวลาไว้ ให้ปลายทางเทสต์ได้"
 	@echo ""
 	@echo "  รายงานรวม"
 	@echo "  make health [REMOTE=1] รายงานสุขภาพ ecosystem เป็น markdown"
@@ -99,7 +100,11 @@ feedback:
 	@$(PY) -m ecosystem_graph.integration.feedback
 
 emit:
-	@$(PY) -m ecosystem_graph.integration.emit --team "$(TEAM)"
+	@$(PY) -m ecosystem_graph.integration.emit $(if $(TEAM),--team "$(TEAM)",--all)
+
+emit-sample:
+	@$(PY) -m ecosystem_graph.integration.emit --all --format jsonl \
+		--occurred-at 2026-01-01T00:00:00Z --out integration/events/sample.jsonl
 
 health:
 	@$(PY) -m ecosystem_graph.health $(if $(REMOTE),--remote,)

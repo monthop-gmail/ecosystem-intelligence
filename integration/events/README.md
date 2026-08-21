@@ -1,0 +1,36 @@
+# Event handoff
+
+ที่ทางสำหรับ `event/v1` ที่ `ecosystem-intelligence` ปล่อยออกมา
+— ตอบ [devfactory-core#32](https://github.com/monthop-gmail/devfactory-core/issues/32)
+
+| ไฟล์ | คืออะไร | ใช้ยังไง |
+| --- | --- | --- |
+| `sample.jsonl` | ตัวอย่างที่**ตรึงเวลาไว้** ผลเหมือนเดิมทุกครั้ง | ให้ปลายทางเขียนเทสต์ยิงกับของจริงได้โดยไม่ต้องรอ service |
+| CI artifact `ecosystem-events` | ข้อมูล**สด**จากทุกรอบที่ CI รัน | ดึงไปดูสภาพจริงตอนนั้น |
+
+## ทำไมเป็นไฟล์ ไม่ใช่ HTTP
+
+ตอนเปิด issue เราเสนอสามทาง (webhook / ดึงจาก API / broker) โดยไม่ได้ตรวจว่าทางไหน
+**มีอยู่จริง** — `devfactory-core` ตรวจให้แล้วพบว่าไม่มีสักทาง เราไม่มี endpoint สำหรับ
+event เขาไม่มี endpoint รับ และ broker ก็ยังไม่มีใน ecosystem
+
+artifact handoff เป็นทางที่ **ไม่ต้องสร้างอะไรเลยทั้งสองฝั่ง** และพิสูจน์ว่าท่อไหลได้จริง
+ก่อนตัดสินใจลงทุน — ไม่ใช่คำตอบระยะยาว
+
+## รูปแบบ
+
+JSON Lines — หนึ่งบรรทัดหนึ่ง event อ่านทีละใบได้โดยไม่ต้องโหลดทั้งก้อน
+key เรียงแล้ว (`sort_keys`) เพื่อให้ diff อ่านรู้เรื่อง
+
+ทุกใบ conform กับ `event/v1` ที่ pin ไว้ใน [`conformance/pinned.yaml`](../../conformance/pinned.yaml)
+— CI ตรวจทั้งความถูกต้องตาม schema และว่าไฟล์นี้ยังตรงกับสิ่งที่ emitter ผลิตจริง
+
+```bash
+make emit-sample     # สร้างใหม่ (ตรึงเวลา 2026-01-01T00:00:00Z)
+make emit            # ข้อมูลสด ออก stdout
+```
+
+## เวลาในตัวอย่างเป็นของปลอมโดยตั้งใจ
+
+`occurred_at` ถูกตรึงไว้เพื่อให้ไฟล์ deterministic — **ห้ามเอาไปใช้เป็นเวลาจริง**
+ข้อมูลสดอยู่ใน CI artifact

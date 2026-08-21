@@ -94,3 +94,20 @@ jobs:
       # ADR-0006 ข้อ 2 — validate payload จริงที่ระบบผลิต ไม่ใช่ fixture ที่เขียนให้ผ่าน
       - name: event ที่ปล่อยออกไปต้อง conform กับ event/v1 ที่ pin ไว้
         run: python conformance/payload_check.py
+
+      # ตัวอย่างที่ commit ไว้ต้องตรงกับสิ่งที่ emitter ผลิตจริง — ไม่งั้นปลายทาง
+      # จะเขียนเทสต์ยิงกับไฟล์ที่ไม่ตรงกับของจริง ซึ่งแย่กว่าไม่มีตัวอย่างเลย
+      - name: sample.jsonl ยังตรงกับ emitter
+        run: |
+          make emit-sample
+          git diff --exit-code integration/events/sample.jsonl
+
+      - name: ปล่อย event สดเป็น artifact ให้ปลายทางดึงไปดู
+        run: |
+          python -m ecosystem_graph.integration.emit --all --format jsonl \
+            --out dist/ecosystem-events.jsonl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ecosystem-events
+          path: dist/ecosystem-events.jsonl
+          retention-days: 14

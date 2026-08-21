@@ -229,3 +229,30 @@ def test_event_จากการรันจริงก็ยัง_conform(co
     assert payloads
     for e in payloads:
         assert not list(validator.iter_errors(e))
+
+
+# ── artifact handoff (devfactory-core#32) ──────────────────────────────
+def test_sample_ที่_commit_ไว้ผ่าน_schema(validator):
+    """ปลายทางจะเขียนเทสต์ยิงกับไฟล์นี้ — ถ้ามันไม่ valid เราส่งของเสียให้เขา"""
+    path = ROOT / "integration" / "events" / "sample.jsonl"
+    lines = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    assert lines, "sample ว่างเปล่า"
+    for e in lines:
+        assert not list(validator.iter_errors(e)), \
+            [x.message for x in validator.iter_errors(e)]
+
+
+def test_sample_ตรึงเวลาไว้จริง():
+    """ถ้าเวลาไม่ถูกตรึง ไฟล์จะเปลี่ยนทุกครั้งที่รัน แล้ว CI จะแดงตลอด"""
+    path = ROOT / "integration" / "events" / "sample.jsonl"
+    stamps = {json.loads(x)["occurred_at"]
+              for x in path.read_text(encoding="utf-8").splitlines() if x.strip()}
+    assert stamps == {"2026-01-01T00:00:00Z"}
+
+
+def test_sample_เป็น_jsonl_ไม่ใช่_json_ก้อนเดียว():
+    path = ROOT / "integration" / "events" / "sample.jsonl"
+    lines = [x for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    assert len(lines) > 1
+    for line in lines:
+        json.loads(line)  # แต่ละบรรทัดต้อง parse ได้เอง
