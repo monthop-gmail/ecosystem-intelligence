@@ -6,12 +6,26 @@ pagination, retry ให้ครบ การเพิ่ม dependency ให�
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from typing import Any
 
 
 class GitHubError(RuntimeError):
-    """เรียก gh ไม่สำเร็จ — แยกจาก error ของ logic ฝั่งเรา"""
+    """เรียก gh ไม่สำเร็จ — แยกจาก error ของ logic ฝั่งเรา
+
+    `status` สำคัญกว่าที่คิด: 404 แปลว่า "ไม่มีอยู่จริง" ซึ่งเป็นคำตอบ
+    ส่วนต่อไม่ติดแปลว่า "ตอบไม่ได้" ซึ่งไม่ใช่คำตอบ — ปนกันเมื่อไหร่
+    รายงานจะบอกว่า repo ที่ตั้งใจไม่ให้มี "ตรวจไม่ได้"
+    """
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+    @property
+    def not_found(self) -> bool:
+        return self.status == 404
 
 
 class GitHubClient:
@@ -29,7 +43,10 @@ class GitHubClient:
         except subprocess.TimeoutExpired as e:
             raise GitHubError(f"gh {' '.join(args[:3])} หมดเวลา") from e
         if proc.returncode != 0:
-            raise GitHubError((proc.stderr or proc.stdout).strip().splitlines()[-1][:300])
+            text = (proc.stderr or proc.stdout).strip()
+            last = text.splitlines()[-1][:300] if text else "gh ล้มเหลวโดยไม่มีข้อความ"
+            match = re.search(r"HTTP (\d{3})", text)
+            raise GitHubError(last, status=int(match.group(1)) if match else None)
         return proc.stdout
 
     def api(self, path: str, *, paginate: bool = False, timeout: int = 120) -> Any:

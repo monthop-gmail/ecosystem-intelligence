@@ -187,3 +187,32 @@ def test_client_นับจำนวน_call_เอง():
     """rate_limit ของ GitHub ไม่ขยับทันที — ตัวเลขที่รายงานต้องนับเอง"""
     c = GitHubClient()
     assert c.calls == 0
+
+
+def test_404_กับต่อไม่ติดต้องแยกกัน():
+    """404 = "ไม่มีอยู่จริง" ซึ่งเป็นคำตอบ · ต่อไม่ติด = "ตอบไม่ได้" ซึ่งไม่ใช่คำตอบ
+
+    ปนกันเมื่อไหร่ รายงานจะบอกว่า repo ที่ตั้งใจไม่ให้มี "ตรวจไม่ได้"
+    ซึ่งกลบสัญญาณจริงจนหมด — เจอกับตัวตอนรัน feedback ครั้งแรก
+    """
+    from ecosystem_graph.github.client import GitHubError
+
+    missing = GitHubError("gh: Not Found (HTTP 404)", status=404)
+    offline = GitHubError("dial tcp: lookup api.github.com: no such host")
+    assert missing.not_found is True
+    assert offline.not_found is False
+
+
+def test_client_อ่าน_status_จากข้อความของ_gh(monkeypatch):
+    from ecosystem_graph.github import client as mod
+
+    class FakeProc:
+        returncode = 1
+        stdout = ""
+        stderr = "gh: Not Found (HTTP 404)"
+
+    monkeypatch.setattr(mod.subprocess, "run", lambda *a, **k: FakeProc())
+    c = mod.GitHubClient()
+    with pytest.raises(mod.GitHubError) as e:
+        c.api("repos/x/y")
+    assert e.value.status == 404 and e.value.not_found

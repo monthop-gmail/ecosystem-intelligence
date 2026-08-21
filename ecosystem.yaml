@@ -10,7 +10,7 @@ apiVersion: ecosystem.intelligence/v0.1
 
 metadata:
   name: monthop-ecosystem
-  updated: 2026-08-21
+  updated: 2026-08-22
   maintained_by: ecosystem-team
   note: >-
     v0.1 ดูแลด้วยมือโดยเจตนา — การ sync อัตโนมัติจาก GitHub เป็นงานของ M3
@@ -285,7 +285,7 @@ components:
     conformance:
       status: passing
       manifest: platform-contract.yaml
-      last_verified: 2026-08-21
+      last_verified: 2026-08-22
       evidence: conformance/payload_check.py — 58 event/รอบ รันบน sqlite และ Postgres ทุก PR
 
   - id: enterprise-knowledge
@@ -340,8 +340,8 @@ components:
     conformance:
       status: passing
       manifest: platform-contract.yaml
-      pinned_commit: 6e97e0854f59426f62dfb873b91b6524da62e4b2
-      last_verified: 2026-08-21
+      pinned_commit: c92a4144419679c6264bc07bd59c320ad1ffa8ba
+      last_verified: 2026-08-22
       evidence: >-
         conformance/payload_check.py — ผลิต event จากการรัน advisor ทุกทีมและ guardian
         กับ ecosystem จริง แล้ว validate กับ event/v1 ที่ pin ไว้ พร้อมตรวจ guarantee

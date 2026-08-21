@@ -56,7 +56,11 @@ def proposals(conn, *, gh: GitHubClient | None = None) -> list[dict[str, Any]]:
         if not r["does_exist"]:
             try:
                 gh.api(f"repos/{gh.owner}/{r['id']}")
-            except Exception:  # noqa: BLE001 — ต่อ GitHub ไม่ได้ก็ยังต้องรายงานส่วนที่เหลือ
+            except GitHubError as e:
+                if not e.not_found:      # ต่อไม่ติด = ตอบไม่ได้ ต้องบอก
+                    unreachable.append(r["id"])
+                continue                 # 404 = ยังไม่มีจริง ตรงกับที่ประกาศไว้ ไม่ใช่ปัญหา
+            except Exception:  # noqa: BLE001
                 unreachable.append(r["id"])
                 continue
             out.append({

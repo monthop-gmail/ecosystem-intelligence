@@ -48,6 +48,14 @@ $defs:
       - EXECUTION_STARTED
       - EXECUTION_FAILED
       - JOB_COMPLETED
+      # ใบปิดท้ายของ subject ที่จบแล้ว — devfactory-core RFC-0012
+      # ออกทุก terminal รวม COMPLETED ที่ออก JOB_COMPLETED ด้วย เพราะสองใบตอบคนละคำถาม:
+      # JOB_COMPLETED = งานถูกส่งมอบไหม · JOB_SETTLED = บันทึกจบแล้วหรือยัง
+      # กฎที่ไม่มีข้อยกเว้นคือสิ่งที่ทำให้ผู้อ่านตรวจได้โดยไม่ต้องรู้ว่าการจบแบบไหนพิเศษ
+      #
+      # นี่คือครึ่งความครบถ้วนที่ ADR-0015 บอกเองว่าปิดด้วยใบปิดท้าย ไม่ใช่ด้วย sequence
+      # ([#23](https://github.com/monthop-gmail/agent-platform/issues/23))
+      - JOB_SETTLED
       # consent — `consent/v1` consent_rules ข้อ 2 บังคับให้ออก event ทุกครั้ง
       # ([ADR-0020](../../../decisions/0020-consent-event-vocabulary.md))
       # ⚠️ ไม่มี CONSENT_USED โดยเจตนา — การใช้บันทึกด้วย field `consent` บน event
