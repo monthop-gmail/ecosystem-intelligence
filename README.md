@@ -67,7 +67,7 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | Milestone | ชื่อ | สาระ |
 | --- | --- | --- |
 | **M0** | Ecosystem Foundation | นิยาม entity / relationship / ownership → `ecosystem.yaml` |
-| **M1** | Knowledge Plane | PostgreSQL, Knowledge API, import ecosystem definition, repository registry |
+| **M1** | Ecosystem Graph | PostgreSQL, Ecosystem Graph API, import ecosystem definition, repository registry |
 | **M2** | Team Advisor | Team context, Ask API, LLM reasoning, recommended work ← **MVP อยู่ตรงนี้** |
 | **M3** | GitHub Intelligence | Repository sync, issues, PRs, current work detection |
 | **M4** | Impact Analysis | Dependency graph, change analysis, cross-team impact |
@@ -93,7 +93,7 @@ make validate          # โครงสร้าง + referential integrity + �
 make validate-github   # ตรวจเพิ่มว่า repo ที่ประกาศไว้มีอยู่จริง
 ```
 
-⏭️ ถัดไป **M1** — ยกข้อมูลชุดนี้ขึ้น Knowledge Plane ที่ query ได้
+⏭️ ถัดไป **M1 — Ecosystem Graph** ยกข้อมูลชุดนี้ขึ้นเป็น graph ที่ query ได้
 
 ## ไฟล์สำคัญ
 
