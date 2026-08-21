@@ -1287,6 +1287,129 @@
           }
         }
       }
+    },
+    "/guardian/report": {
+      "get": {
+        "tags": [
+          "guardian"
+        ],
+        "summary": "ตรวจ ecosystem ทั้งหมดตามกฎที่ตรวจอัตโนมัติได้",
+        "operationId": "guardian_report_guardian_report_get",
+        "parameters": [
+          {
+            "name": "remote",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "ตรวจ manifest drift ด้วย (ออกเน็ต)",
+              "default": false,
+              "title": "Remote"
+            },
+            "description": "ตรวจ manifest drift ด้วย (ออกเน็ต)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Guardian Report Guardian Report Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/guardian/rules": {
+      "get": {
+        "tags": [
+          "guardian"
+        ],
+        "summary": "กฎทั้งหมดที่ Guardian ตรวจ",
+        "operationId": "guardian_rules_guardian_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Guardian Rules Guardian Rules Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/guardian/pulls/{repository}/{number}": {
+      "get": {
+        "tags": [
+          "guardian"
+        ],
+        "summary": "รีวิว PR หนึ่งใบ — คืนคอมเมนต์ที่จะโพสต์ แต่ไม่โพสต์ให้",
+        "operationId": "guardian_pr_guardian_pulls__repository___number__get",
+        "parameters": [
+          {
+            "name": "repository",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Repository"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Guardian Pr Guardian Pulls  Repository   Number  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

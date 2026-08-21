@@ -15,6 +15,8 @@ from . import advisor
 from . import impact as impact_mod
 from . import queries as q
 from .github import work as gh_work
+from .guardian import checks as guardian_checks
+from .guardian import review as guardian_review
 from .db import connect
 from .llm import LLMError, get_provider
 
@@ -292,4 +294,36 @@ def pull_analysis(repository: str, number: int, conn=Depends(db)) -> dict:
     result = impact_mod.analyze_pr(conn, repository, number)
     if not result["available"]:
         raise HTTPException(status_code=502, detail=result["reason"])
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Architecture Guardian (M5) — ตรวจอย่างเดียว ไม่คอมเมนต์
+#
+# การคอมเมนต์บน PR ทำผ่าน CLI ที่ต้องยืนยันด้วย --post เท่านั้น
+# ไม่เปิดทาง API เพราะ endpoint ที่โพสต์ของออกไปข้างนอกได้ด้วย GET เดียว
+# เป็นสิ่งที่เผลอเรียกได้ง่ายเกินไป
+# ─────────────────────────────────────────────────────────────────────────
+@app.get("/guardian/report", tags=["guardian"],
+         summary="ตรวจ ecosystem ทั้งหมดตามกฎที่ตรวจอัตโนมัติได้")
+def guardian_report(
+    remote: bool = Query(False, description="ตรวจ manifest drift ด้วย (ออกเน็ต)"),
+    conn=Depends(db),
+) -> dict:
+    return guardian_checks.run_all(conn, include_remote=remote)
+
+
+@app.get("/guardian/rules", tags=["guardian"], summary="กฎทั้งหมดที่ Guardian ตรวจ")
+def guardian_rules() -> dict:
+    rules = guardian_checks.load_rules()
+    return {"count": len(rules), "rules": list(rules.values())}
+
+
+@app.get("/guardian/pulls/{repository}/{number}", tags=["guardian"],
+         summary="รีวิว PR หนึ่งใบ — คืนคอมเมนต์ที่จะโพสต์ แต่ไม่โพสต์ให้")
+def guardian_pr(repository: str, number: int, conn=Depends(db)) -> dict:
+    result = guardian_review.review_pr(conn, repository, number)
+    if not result["available"]:
+        raise HTTPException(status_code=502, detail=result["reason"])
+    result["comment"] = guardian_review.render_comment(result)
     return result

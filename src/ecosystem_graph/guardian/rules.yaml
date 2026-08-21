@@ -1,0 +1,148 @@
+# กฎที่ Architecture Guardian ตรวจอัตโนมัติ (#21 #22)
+#
+# กฎในไฟล์นี้ต้อง "ตรวจได้ด้วยเครื่อง" เท่านั้น — กฎที่ต้องให้คนอ่านตัดสิน
+# อยู่ใน architecture_rules ของ ecosystem.yaml และ must_not ของแต่ละ plane
+# ซึ่งเป็นข้อความสำหรับคน ไม่ใช่สำหรับ validator
+#
+# severity
+#   error   ผิดกฎที่ ecosystem ตกลงกันแล้ว — ต้องแก้
+#   warn    น่าสงสัย ต้องมีคนดู แต่ไม่ได้ผิดกฎตรง ๆ
+#
+# ทุกกฎต้องมี fix — รายงานที่บอกว่าผิดแต่ไม่บอกว่าจะแก้ยังไง ไม่มีใครทำตาม
+
+rules:
+  # ── โครงสร้าง ────────────────────────────────────────────────────────
+  - id: orphan-component
+    severity: error
+    check: orphan_components
+    title: component ไม่มีทีมเจ้าของ
+    why: >-
+      "รับผิดชอบร่วมกัน" แปลว่าไม่มีใครรับผิดชอบ — component ที่ไม่มีเจ้าของ
+      คือจุดที่ ecosystem เริ่มเพี้ยนโดยไม่มีใครรู้
+    fix: ระบุ owner ใน ecosystem.yaml ให้เป็นทีมเดียว
+    source: docs/entities.md §3
+
+  - id: duplicate-plane-implementation
+    severity: warn
+    check: duplicate_plane_implementations
+    title: มีมากกว่าหนึ่ง component ที่ implement plane เดียวกัน
+    why: >-
+      plane หนึ่งมีหลาย implementation ได้จริง (เช่น runtime มีทั้ง native และ
+      external provider) แต่ถ้าไม่ได้ตั้งใจ นี่คืออาการของการสร้าง abstraction ซ้ำ
+      ซึ่งเป็นความผิดพลาดที่ ecosystem นี้เคยเจอมาแล้ว
+    fix: ยืนยันว่าตั้งใจ หรือยุบให้เหลือตัวเดียว แล้วบันทึกเหตุผลไว้ใน ADR
+    source: ecosystem.yaml goal no-duplicate-abstraction
+
+  - id: execution-owns-governance
+    severity: error
+    check: execution_owns_governance
+    title: component ชั้น execution เป็นเจ้าของ contract ของ governance
+    why: >-
+      "execution ไม่ตัดสิน governance เอง" — ชั้นที่รันงานต้องถามผลตัดสิน
+      ไม่ใช่เป็นคนตัดสินเอง ไม่งั้นไม่มีใครบังคับ policy ได้จริง
+    fix: ย้ายการเป็นเจ้าของ policy/v1 หรือ approval/v1 ไปที่ plane policy
+    source: ecosystem.yaml architecture_rules execution-no-governance
+
+  - id: execution-holds-credential
+    severity: error
+    check: execution_holds_credential
+    title: component ชั้น execution ใช้ provider contract ตรง ๆ
+    why: >-
+      "execution ไม่ถือ provider credential เอง" — ต้องผ่านชั้นที่ทำหน้าที่นั้น
+      ไม่งั้น credential จะกระจายไปทุกที่และเพิกถอนไม่ได้
+    fix: ให้เรียกผ่าน model-gateway แทนการ consume provider/v1 ตรง ๆ
+    source: ecosystem.yaml architecture_rules execution-no-credential
+
+  - id: orchestration-owns-artifact
+    severity: error
+    check: orchestration_owns_artifact
+    title: component ชั้น orchestration เป็นเจ้าของ artifact contract
+    why: >-
+      "orchestration ไม่แก้ artifact เอง" — ชั้นที่สั่งงานข้ามขั้น
+      ต้องไม่เป็นคนแก้ผลงานเอง ไม่งั้นตรวจย้อนไม่ได้ว่าใครแก้อะไร
+    fix: ให้ component ที่ทำงานจริงเป็นเจ้าของ artifact/v1
+    source: ecosystem.yaml architecture_rules orchestration-no-artifact
+
+  - id: plane-without-implementation
+    severity: warn
+    check: planes_without_implementation
+    title: plane ที่ยังไม่มีใคร implement
+    why: plane ที่ไม่มีใครทำคือช่องว่างของ ecosystem ที่ควรรู้ตัว ไม่ใช่ลืมไป
+    fix: มอบหมายเจ้าของ หรือยุบ plane ถ้าไม่ต้องการแล้ว
+
+  # ── contract ─────────────────────────────────────────────────────────
+  - id: manifest-drift
+    severity: error
+    check: manifest_drift
+    title: ecosystem.yaml ไม่ตรงกับ platform-contract.yaml ของจริง
+    why: >-
+      แหล่งความจริงเรื่องการ pin คือ manifest ในแต่ละ repo — ถ้า ecosystem.yaml
+      เขียนไม่ตรง impact analysis ทั้งหมดจะคำนวณจากข้อมูลผิด
+    fix: แก้ ecosystem.yaml ให้ตรงกับ manifest แล้วรัน make import ใหม่
+    source: docs/entities.md §2.1.1
+
+  - id: contract-without-consumer
+    severity: warn
+    check: contracts_without_consumer
+    title: contract ที่ยังไม่มีใคร pin
+    why: >-
+      contract ที่ไม่มี consumer ปิดเวอร์ชันได้โดยไม่กระทบใคร — แต่ถ้ามีทีมที่
+      ประกาศเจตนาจะใช้ค้างอยู่ การปิดจะทำให้แผนเขาพัง
+    fix: หา consumer รายที่สองตามเกณฑ์รับ contract หรือปิดเวอร์ชันทิ้ง
+    source: ADR-0012
+
+  - id: derived-contract-semantics-missing
+    severity: error
+    check: derived_without_semantics_owner
+    title: contract ที่ derive มาแต่ไม่มีเจ้าของ semantics
+    why: >-
+      contract ที่แยกเจ้าของ "รูปร่าง" กับ "ความหมาย" ต้องระบุทั้งคู่
+      ไม่งั้นไม่มีใครรู้ว่าต้องเปิด RFC ที่ไหนก่อนแก้
+    fix: ระบุ semantics_owner ใน ecosystem.yaml
+    source: ADR-0006 C2
+
+  - id: conformance-stale
+    severity: warn
+    check: stale_conformance
+    title: conformance ที่ตรวจครั้งสุดท้ายนานเกินไป
+    why: passing ที่เก่ากว่า 90 วัน platform ถือเป็น unknown ไม่ว่าไฟล์จะเขียนว่าอะไร
+    fix: รัน conformance ใหม่แล้วอัปเดต last_verified
+    source: ADR-0006
+
+  - id: consumes-without-evidence
+    severity: error
+    check: consumes_without_manifest
+    title: ประกาศ consumes โดยไม่มี manifest เป็นหลักฐาน
+    why: >-
+      consumes ที่ไม่มีหลักฐานทำให้ impact analysis รายงาน dependency ที่ไม่มีจริง
+      ซึ่งแย่กว่าการไม่รายงานเลย
+    fix: ย้ายไป expected_contracts จนกว่าจะมี platform-contract.yaml จริง
+    source: docs/entities.md §2.1.1
+
+  # ── PR ───────────────────────────────────────────────────────────────
+  - id: breaking-without-coordination
+    severity: error
+    check: null
+    title: PR ที่ breaking แต่ยังมี consumer ที่ยัง pin เวอร์ชันเดิมอยู่
+    why: >-
+      ADR-0006 ห้ามปล่อย release ถ้า consumer ยังไม่พร้อม — breaking change
+      ที่ merge ไปก่อนจะทำให้ทีมอื่นพังโดยไม่ทันตั้งตัว
+    fix: ประสานกับทีมที่กระทบตามลำดับที่ระบุ แล้วค่อย merge
+
+  - id: semantics-change-without-rfc
+    severity: error
+    check: null
+    title: PR แตะ contract ที่ semantics เป็นของ repo อื่น
+    why: >-
+      contract ที่ derive semantics มา แก้ที่ปลายทางฝ่ายเดียวไม่ได้
+      ต้องมี RFC ที่ต้นทางก่อน ไม่งั้นสองฝั่งจะเข้าใจไม่ตรงกัน
+    fix: เปิด RFC ที่ repo เจ้าของ semantics ก่อน แล้วอ้างถึงใน PR นี้
+
+  - id: contract-change-unclear
+    severity: warn
+    check: null
+    title: PR แตะ contract แต่ตัดสินไม่ได้ว่า breaking หรือไม่
+    why: >-
+      การเดาว่า non-breaking แล้วผิด แพงกว่าการให้คนอ่าน — PR แบบนี้
+      ต้องมีคนยืนยันก่อน merge
+    fix: ระบุใน CHANGELOG ให้ชัดว่า breaking หรือไม่ พร้อมเหตุผล

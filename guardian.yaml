@@ -1,0 +1,34 @@
+# ตั้งค่า Architecture Guardian ตอนรีวิว PR (#23)
+#
+# **default คือปิด** — Guardian จะไม่คอมเมนต์ที่ไหนเลยจนกว่าจะเปิดทีละ repo
+# และเปิดแล้วก็ยังเป็น warn ก่อน ไม่บล็อกใคร
+#
+# mode
+#   warn   คอมเมนต์อย่างเดียว ไม่ตั้งสถานะอะไร — เริ่มที่นี่เสมอ
+#   block  คอมเมนต์ + ถือว่า error คือเหตุให้ไม่ควร merge
+#
+# การเปิดใช้กับ repo ของทีมอื่นควรถามเจ้าของก่อน — bot ที่โผล่ไปคอมเมนต์
+# โดยไม่มีใครขอ คือ bot ที่จะถูกปิดภายในสัปดาห์เดียว
+
+default:
+  enabled: false
+  mode: warn
+
+repositories:
+  agent-platform:
+    enabled: false
+    mode: warn
+    note: repo เจ้าของ contract — ควรเป็นที่แรกที่เปิด แต่ต้องคุยกับ platform-team ก่อน
+  devfactory-core:
+    enabled: false
+    mode: warn
+  care-agent-platform:
+    enabled: false
+    mode: warn
+  enterprise-knowledge:
+    enabled: false
+    mode: warn
+  ecosystem-intelligence:
+    enabled: false
+    mode: warn
+    note: repo ของเราเอง — เปิดที่นี่ก่อนเป็นที่แรกได้โดยไม่ต้องขอใคร

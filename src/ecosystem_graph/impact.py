@@ -158,8 +158,22 @@ def classify_patch(path: str, patch: str | None, status: str) -> dict[str, Any]:
     removed = [ln[1:] for ln in patch.splitlines() if ln.startswith("-") and not ln.startswith("---")]
 
     # required: เป็นสัญญาณที่ชัดที่สุดใน JSON Schema
-    req_added = _required_items(patch, "+")
-    req_removed = _required_items(patch, "-")
+    inline_add, inline_del = _inline_required(patch, "+"), _inline_required(patch, "-")
+    req_added = sorted(set(_required_items(patch, "+")) | (inline_add - inline_del))
+    req_removed = sorted(set(_required_items(patch, "-")) | (inline_del - inline_add))
+
+    # oneOf / anyOf / if-then ทำให้ required กลายเป็นเงื่อนไข ไม่ใช่รายการเดียว
+    # การอ่าน required แบบแบน ๆ จาก diff จะสรุปผิดทันที — เคสจริง: agent-platform#33
+    # ที่ย้าย subject ออกจาก required แล้วใส่ oneOf(actor|subject) แทน
+    # payload เดิมยัง valid ทุกใบ แต่ diff แบบแบนอ่านว่า "เพิ่ม required field"
+    conditional = any(re.search(r"\b(oneOf|anyOf|allOf|if|then|else):", ln) for ln in
+                      [l[1:] for l in patch.splitlines() if l.startswith("+")])
+    if conditional and (req_added or req_removed):
+        return {"path": path, "level": "unsure",
+                "reasons": [f"required เปลี่ยนพร้อมกับมี oneOf/anyOf/if-then ในไฟล์เดียวกัน "
+                            f"— required กลายเป็นเงื่อนไข อ่านจาก diff แบบแบนไม่ได้ "
+                            f"(เห็น added={req_added or '—'} removed={req_removed or '—'})"]}
+
     if req_added:
         level = "breaking"
         reasons.append(f"เพิ่ม required field: {', '.join(req_added)} "
@@ -174,10 +188,16 @@ def classify_patch(path: str, patch: str | None, status: str) -> dict[str, Any]:
         level = "breaking"
         reasons.append(f"ถอด property: {', '.join(sorted(prop_removed))}")
 
-    type_changed = [ln.strip() for ln in removed if re.match(r"\s*type:\s*\S", ln)]
-    if type_changed and any(re.match(r"\s*type:\s*\S", ln) for ln in added):
+    # `type:` ที่หายไปกับที่โผล่มา อาจเป็นคนละ field กันก็ได้ — การจัดโครงสร้างใหม่
+    # ทำให้เกิดภาพแบบนี้ได้ตลอด ฟันธงว่า breaking จากสัญญาณนี้อย่างเดียวคือเดา
+    type_removed = [ln.strip() for ln in removed if re.match(r"\s*type:\s*\S", ln)]
+    type_added = [ln.strip() for ln in added if re.match(r"\s*type:\s*\S", ln)]
+    if type_removed and type_added and level == "unsure":
+        reasons.append("มีการเปลี่ยน type ในไฟล์ แต่ diff ไม่ได้บอกว่าเป็นของ field ไหน "
+                       "— ถ้าเป็นการย้าย definition ก็ไม่ breaking ต้องให้คนอ่าน")
+    elif type_removed and not type_added:
         level = "breaking"
-        reasons.append("เปลี่ยน type ของ field ที่มีอยู่แล้ว")
+        reasons.append("ถอด type ของ field ออกโดยไม่มีตัวแทน")
 
     enum_removed = [ln.strip() for ln in removed if re.match(r"\s*- ['\"]?[A-Z_]{2,}", ln)]
     if enum_removed and not any(ln.strip() in [e for e in enum_removed] for ln in added):
@@ -197,6 +217,21 @@ def classify_patch(path: str, patch: str | None, status: str) -> dict[str, Any]:
         reasons.append("สัญญาณไม่ชัดพอจะตัดสิน — ต้องให้คนอ่าน diff")
 
     return {"path": path, "level": level, "reasons": reasons}
+
+
+def _inline_required(patch: str, sign: str) -> set[str]:
+    """required: [a, b, c] — รูปแบบ inline ที่ตัวอ่านแบบ block มองไม่เห็น
+
+    ของจริงใน ecosystem นี้ใช้ทั้งสองแบบ ตัวอ่านที่รู้จักแบบเดียวจะพลาดเงียบ ๆ
+    """
+    items: set[str] = set()
+    for raw in patch.splitlines():
+        if not raw.startswith(sign):
+            continue
+        m = re.search(r"required:\s*\[([^\]]*)\]", raw)
+        if m:
+            items |= {t.strip().strip("'\"") for t in m.group(1).split(",") if t.strip()}
+    return items
 
 
 def _required_items(patch: str, sign: str) -> list[str]:

@@ -1,7 +1,8 @@
 PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
 .PHONY: help install validate validate-github up down schema import import-dry \
-        registry api openapi sync work graph mermaid impact ask provider test test-all fmt
+        registry api openapi sync work graph mermaid impact guardian guardian-pr \
+        ask provider test test-all fmt
 
 help:
 	@echo "  make install          ติดตั้ง dependency ลง .venv"
@@ -34,6 +35,11 @@ help:
 	@echo "  make impact CONTRACT=approval/v1 [LEVEL=breaking] ผลกระทบข้ามทีม + ร่าง issue"
 	@echo "  make impact PR=agent-platform#35                  วิเคราะห์ PR จาก diff จริง"
 	@echo "  make mermaid          graph ทั้ง ecosystem เป็น mermaid"
+	@echo ""
+	@echo ""
+	@echo "  M5 — Architecture Guardian"
+	@echo "  make guardian [REMOTE=1]              ตรวจทั้ง ecosystem"
+	@echo "  make guardian-pr PR=agent-platform#33 [POST=1]   รีวิว PR"
 	@echo ""
 	@echo "  make test             unit test — ไม่ต้องมี DB"
 	@echo "  make test-all         test ทั้งหมด — ต้องมี DB"
@@ -73,6 +79,12 @@ api:
 
 openapi:
 	@$(PY) tools/export_openapi.py
+
+guardian:
+	@$(PY) -m ecosystem_graph.cli_guardian $(if $(REMOTE),--remote,)
+
+guardian-pr:
+	@$(PY) -m ecosystem_graph.cli_guardian --pr "$(PR)" $(if $(POST),--post,)
 
 graph:
 	@$(PY) -m ecosystem_graph.cli_impact --graph "$(COMPONENT)" --direction "$(or $(DIR),down)"

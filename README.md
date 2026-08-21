@@ -71,7 +71,7 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | **M2** ✅ | Team Advisor | Team context, Ask API, LLM reasoning, recommended work ← **MVP อยู่ตรงนี้** |
 | **M3** ✅ | GitHub Intelligence | Repository sync, issues, PRs, current work detection |
 | **M4** ✅ | Impact Analysis | Dependency graph, change analysis, cross-team impact |
-| **M5** | Architecture Guardian | Architecture / contract validation, PR & issue review |
+| **M5** ✅ | Architecture Guardian | Architecture / contract validation, PR & issue review |
 | **M6** | Delivery Integration | เชื่อม agent-platform, devfactory-core, delivery orchestrator |
 
 ## Definition of Done (MVP)
@@ -92,7 +92,8 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | **M2 — Team Advisor** | ✅ เสร็จ — **MVP** · DoD scenario ผ่าน |
 | **M3 — GitHub Intelligence** | ✅ เสร็จ — sync issue/PR + current work detection |
 | **M4 — Impact Analysis** | ✅ เสร็จ — dependency graph + breaking detection + ร่าง issue |
-| **M5 — Architecture Guardian** | ⏭️ ถัดไป |
+| **M5 — Architecture Guardian** | ✅ เสร็จ — 14 กฎในไฟล์ + รีวิว PR (default ปิด) |
+| **M6 — Delivery Integration** | ⏭️ ถัดไป |
 
 ครอบคลุมของจริง **15 contracts · 11 planes · 14 components · 14 repositories · 7 teams**
 
@@ -109,6 +110,8 @@ make api               # http://localhost:8000/docs
 ```
 
 ```bash
+make guardian                           # ตรวจ ecosystem ตาม 14 กฎ
+make guardian-pr PR=agent-platform#33   # รีวิว PR (ไม่โพสต์จนกว่าจะเปิดและยืนยัน)
 make graph COMPONENT=agent-platform     # ต้นไม้ dependency
 make impact CONTRACT=approval/v1 LEVEL=breaking
 make impact PR=agent-platform#35        # วิเคราะห์ PR จาก diff จริง
@@ -175,6 +178,8 @@ curl localhost:8000/graph/cycles                         # มี circular depen
 | [`docs/llm.md`](docs/llm.md) | ชั้น LLM — provider, prompt caching, grounding |
 | [`docs/github.md`](docs/github.md) | GitHub sync, declared vs in-progress, งานซ้ำข้ามทีม |
 | [`docs/impact.md`](docs/impact.md) | dependency graph, breaking detection, ลำดับการประสาน |
+| [`docs/guardian.md`](docs/guardian.md) | กฎ 14 ข้อ, manifest drift, การรีวิว PR |
+| [`guardian.yaml`](guardian.yaml) | เปิด/ปิด Guardian รายrepo — **default ปิดทั้งหมด** |
 | [`evaluation/questions.yaml`](evaluation/questions.yaml) | ชุดคำถามทดสอบ + คำตอบที่คาดหวัง |
 | [`docs/openapi.json`](docs/openapi.json) | OpenAPI spec — CI ตรวจว่าตรงกับโค้ดเสมอ |
 
