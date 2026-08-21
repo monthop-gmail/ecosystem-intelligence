@@ -85,7 +85,27 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 
 ## สถานะ
 
-🚧 **M0 — Ecosystem Foundation** ยังไม่เริ่มเขียนโค้ด ตอนนี้มีแค่ roadmap และ reference
+✅ **M0 — Ecosystem Foundation** — Ecosystem Map v0.1 พร้อมแล้ว
+ครอบคลุมของจริง 15 contracts · 11 planes · 14 components · 14 repositories · 7 teams
+
+```bash
+make validate          # โครงสร้าง + referential integrity + กฎของ ecosystem
+make validate-github   # ตรวจเพิ่มว่า repo ที่ประกาศไว้มีอยู่จริง
+```
+
+⏭️ ถัดไป **M1** — ยกข้อมูลชุดนี้ขึ้น Knowledge Plane ที่ query ได้
+
+## ไฟล์สำคัญ
+
+| ไฟล์ | คืออะไร |
+| --- | --- |
+| [`ecosystem.yaml`](ecosystem.yaml) | **Ecosystem Map v0.1** — แหล่งความจริงเรื่อง team, ownership และ repo↔component↔plane mapping |
+| [`docs/entities.md`](docs/entities.md) | data model + เหตุผลที่เลือกแบบนี้ รวมถึงสิ่งที่จงใจไม่ทำ |
+| [`schema/ecosystem.schema.json`](schema/ecosystem.schema.json) | JSON Schema ของไฟล์ข้างบน |
+| [`tools/validate_ecosystem.py`](tools/validate_ecosystem.py) | validator — stdlib + pyyaml (jsonschema ถ้ามี) |
+
+> ⚠️ **repo นี้ไม่ใช่เจ้าของ contract** — schema เป็นของ [`agent-platform`](https://github.com/monthop-gmail/agent-platform/tree/main/contracts)
+> เปลี่ยนได้ผ่าน ADR เท่านั้น เราอ้างอิงและรวบรวม ไม่ประกาศแทน ([เหตุผล](docs/entities.md))
 
 ## Reference
 

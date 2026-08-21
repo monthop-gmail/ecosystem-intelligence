@@ -1,0 +1,403 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/monthop-gmail/ecosystem-intelligence/schema/ecosystem.schema.json",
+  "title": "Ecosystem Map",
+  "description": "โครงสร้างของ ecosystem.yaml — ตรวจรูปร่างอย่างเดียว ส่วน referential integrity ตรวจโดย tools/validate_ecosystem.py",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "metadata",
+    "sources",
+    "contracts",
+    "planes",
+    "teams",
+    "repositories",
+    "components"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "const": "ecosystem.intelligence/v0.1"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "name",
+        "updated",
+        "maintained_by"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "updated": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "maintained_by": {
+          "$ref": "#/$defs/id"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sources": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "owner",
+          "url"
+        ],
+        "properties": {
+          "owner": {
+            "$ref": "#/$defs/id"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "rule": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "architecture_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "rule"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "rule": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "authority",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/contractId"
+          },
+          "authority": {
+            "$ref": "#/$defs/id"
+          },
+          "semantics_owner": {
+            "$ref": "#/$defs/id"
+          },
+          "derived": {
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "v1",
+              "draft",
+              "deprecated"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "planes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "responsibility",
+          "contracts",
+          "must_not"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "responsibility": {
+            "type": "string"
+          },
+          "contracts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/contractId"
+            }
+          },
+          "must_not": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "teams": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "responsibilities",
+          "members"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "responsibilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "repositories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "exists"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "enum": [
+              "public",
+              "private",
+              "unknown",
+              null
+            ]
+          },
+          "default_branch": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "manifest": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "implements",
+          "owner",
+          "repository",
+          "status",
+          "exposes",
+          "consumes",
+          "conformance"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "name": {
+            "type": "string"
+          },
+          "implements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "implements_note": {
+            "type": "string"
+          },
+          "outside_plane_model": {
+            "type": "boolean"
+          },
+          "outside_plane_reason": {
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/$defs/id"
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "enum": [
+              "active",
+              "in-development",
+              "scaffold",
+              "planned",
+              "deprecated"
+            ]
+          },
+          "exposes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/contractId"
+            }
+          },
+          "consumes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/contractId"
+            }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "component",
+                "reason"
+              ],
+              "properties": {
+                "component": {
+                  "$ref": "#/$defs/id"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "conformance": {
+            "$ref": "#/$defs/conformance"
+          },
+          "expected_contracts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/contractId"
+            },
+            "description": "contract ที่คาดว่าจะใช้ตาม plane/roadmap — ยังไม่มีหลักฐานจาก manifest"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "contractId": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+/v[0-9]+$"
+    },
+    "conformance": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "passing",
+            "failing",
+            "unknown",
+            "waived",
+            "not-applicable"
+          ]
+        },
+        "manifest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pinned_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$"
+        },
+        "last_verified": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "waived_until": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "waiver_ref": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

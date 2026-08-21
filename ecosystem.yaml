@@ -1,0 +1,402 @@
+# Ecosystem Map v0.1 — Deliverable ของ M0
+#
+# data model + เหตุผลที่เลือกแบบนี้: docs/entities.md
+# ตรวจไฟล์นี้: make validate
+#
+# ⚠️ ไฟล์นี้ไม่ใช่เจ้าของ contract schema และไม่ใช่เจ้าของผลการ conform
+#    ดู sources: ด้านล่าง — เราอ้างอิงและรวบรวม ไม่ใช่ประกาศแทน
+
+apiVersion: ecosystem.intelligence/v0.1
+
+metadata:
+  name: monthop-ecosystem
+  updated: 2026-08-21
+  maintained_by: ecosystem-team
+  note: >-
+    v0.1 ดูแลด้วยมือโดยเจตนา — การ sync อัตโนมัติจาก GitHub เป็นงานของ M3
+    ข้อมูลทุกบรรทัดในไฟล์นี้ตรวจกับ repo จริงเมื่อ 2026-08-21
+
+# แหล่งความจริงที่อยู่นอก repo นี้ — ห้าม fork ข้อมูลเหล่านี้มาเก็บเอง
+sources:
+  contracts:
+    owner: agent-platform
+    url: https://github.com/monthop-gmail/agent-platform/tree/main/contracts
+    rule: เปลี่ยนได้ผ่าน ADR เท่านั้น (ADR-0006)
+  contract_semantics:
+    owner: devfactory-core
+    url: https://github.com/monthop-gmail/devfactory-core/blob/main/contract-semantics.yaml
+    rule: semantics ของ approval/v1 และ event/v1 (ADR-0006 C2)
+  planes:
+    owner: agent-platform
+    url: https://github.com/monthop-gmail/agent-platform/tree/main/planes
+  consumer_registry:
+    owner: agent-platform
+    url: https://github.com/monthop-gmail/agent-platform/blob/main/architecture/consumers.md
+    note: Markdown ที่คนดูแลด้วยมือ — ไฟล์นี้คือรูปแบบที่ machine อ่านได้ของข้อมูลชุดเดียวกัน
+
+# กฎที่ทุก plane ต้องเคารพ — input โดยตรงของ M5 Architecture Guardian
+# ที่มา: agent-platform/planes/README.md (devfactory-core RFC-0004 · ADR-0003 · ADR-0005)
+architecture_rules:
+  - id: execution-no-governance
+    rule: execution ไม่ตัดสิน governance เอง
+  - id: execution-no-backend
+    rule: execution ไม่แตะ backend resource ตรง ๆ
+  - id: execution-no-credential
+    rule: execution ไม่ถือ provider credential เอง
+  - id: orchestration-no-artifact
+    rule: orchestration ไม่แก้ artifact เอง
+  - id: no-vendor-privilege
+    rule: external agent provider อยู่ใต้กฎเดียวกัน ไม่มีสิทธิ์พิเศษเพราะเป็นของ vendor
+
+# ─────────────────────────────────────────────────────────────────────────
+# CONTRACTS — อ้างอิงเท่านั้น schema จริงอยู่ที่ agent-platform
+# ─────────────────────────────────────────────────────────────────────────
+contracts:
+  - { id: identity/v1,   authority: agent-platform, status: v1 }
+  - { id: agent/v1,      authority: agent-platform, status: v1 }
+  - { id: capability/v1, authority: agent-platform, status: v1 }
+  - { id: provider/v1,   authority: agent-platform, status: v1 }
+  - { id: model/v1,      authority: agent-platform, status: v1 }
+  - { id: tool/v1,       authority: agent-platform, status: v1 }
+  - { id: mcp/v1,        authority: agent-platform, status: v1 }
+  - { id: execution/v1,  authority: agent-platform, status: v1 }
+  - { id: policy/v1,     authority: agent-platform, status: v1 }
+  - { id: artifact/v1,   authority: agent-platform, status: v1 }
+  - { id: error/v1,      authority: agent-platform, status: v1 }
+  - { id: profile/v1,    authority: agent-platform, status: v1 }
+  - { id: consent/v1,    authority: agent-platform, status: v1 }
+  - id: approval/v1
+    authority: agent-platform
+    semantics_owner: devfactory-core
+    derived: true
+    status: v1
+  - id: event/v1
+    authority: agent-platform
+    semantics_owner: devfactory-core
+    derived: true
+    status: v1
+
+# ─────────────────────────────────────────────────────────────────────────
+# PLANES — 11 ตัว นิยามโดย agent-platform/planes/
+# ─────────────────────────────────────────────────────────────────────────
+planes:
+  - id: gateway
+    name: Gateway Plane
+    responsibility: ทางเข้า inbound — auth, policy check, audit
+    contracts: []
+    must_not:
+      - เป็น model-gateway (outbound) — คนละตัวกัน
+      - เป็น agent-fleet (fan-out) — คนละตัวกัน
+
+  - id: runtime
+    name: Runtime Plane
+    responsibility: agent loop, state, lifecycle — native + external
+    contracts: [execution/v1]
+    must_not:
+      - ทำหน้าที่ sandbox — runtime ตัดสินว่าจะรันอะไร sandbox คือที่ที่มันรัน
+
+  - id: harness
+    name: Harness Plane
+    responsibility: execution policy — บังคับลำดับขั้นในหนึ่งงาน
+    contracts: [profile/v1]
+    must_not:
+      - เป็น evals — harness รันใน production, evals เป็น test rig ตอน CI
+      - เป็น workflow — harness อยู่ใน lifetime ของ request เดียว, workflow durable ข้าม process
+
+  - id: evals
+    name: Evals Plane
+    responsibility: สนามทดสอบ — scenario, evaluator, regression
+    contracts: []
+    must_not:
+      - บังคับ policy ใน production — นั่นคือ harness
+
+  - id: tools
+    name: Tools Plane
+    responsibility: catalog ของ tool + MCP registration
+    contracts: [tool/v1, mcp/v1]
+    must_not:
+      - ตัดสินว่าใครใช้ tool ได้ — นั่นคือ policy
+
+  - id: policy
+    name: Policy Plane
+    responsibility: ทำได้ไหม ต้องให้ใครอนุมัติ
+    contracts: [policy/v1, approval/v1]
+    must_not:
+      - ปนผลประเมินของเครื่อง (policy) กับคำตัดสินของผู้มีอำนาจ (approval)
+
+  - id: knowledge
+    name: Knowledge Plane
+    responsibility: ingest, retrieval, citation, ACL
+    contracts: [tool/v1]
+    must_not:
+      - generate คำตอบเอง — retrieval ไม่ generate
+
+  - id: workflow
+    name: Workflow Plane
+    responsibility: orchestration ข้ามขั้น ข้าม agent
+    contracts: [execution/v1]
+    must_not:
+      - แก้ artifact เอง
+
+  - id: sandbox
+    name: Sandbox Plane
+    responsibility: ที่ที่ command รันจริง + isolation
+    contracts: [capability/v1]
+    must_not: []
+
+  - id: observability
+    name: Observability Plane
+    responsibility: trace, audit, cost, replay
+    contracts: [event/v1]
+    must_not: []
+
+  - id: backend-os
+    name: Backend OS Plane
+    responsibility: data plane + connector + บ้านของ native runtime
+    contracts: [identity/v1]
+    must_not: []
+
+# ─────────────────────────────────────────────────────────────────────────
+# TEAMS
+# ⚠️ ทุกทีมมีสมาชิกคนเดียวกันในความเป็นจริงตอนนี้ — validator จะเตือน
+# ─────────────────────────────────────────────────────────────────────────
+teams:
+  - id: platform-team
+    name: Platform Team
+    responsibilities: [contract authority, plane boundary, ADR]
+    members: [monthop-gmail]
+  - id: delivery-team
+    name: Delivery Team
+    responsibilities: [job lifecycle, governance, orchestration, semantics ของ approval และ event]
+    members: [monthop-gmail]
+  - id: knowledge-team
+    name: Knowledge Team
+    responsibilities: [retrieval, ACL, provenance, evaluation]
+    members: [monthop-gmail]
+  - id: care-team
+    name: Care Team
+    responsibilities: [domain consumer — care และ memory]
+    members: [monthop-gmail]
+  - id: harness-team
+    name: Harness Team
+    responsibilities: [execution policy ของ web build]
+    members: [monthop-gmail]
+  - id: ims-team
+    name: IMS Team
+    responsibilities: [system of record — Odoo]
+    members: [monthop-gmail]
+  - id: ecosystem-team
+    name: Ecosystem Team
+    responsibilities: [ecosystem knowledge, advisory, impact analysis]
+    members: [monthop-gmail]
+
+# ─────────────────────────────────────────────────────────────────────────
+# REPOSITORIES
+# ─────────────────────────────────────────────────────────────────────────
+repositories:
+  - { id: agent-platform,        url: "https://github.com/monthop-gmail/agent-platform",        visibility: public, default_branch: main,   exists: true,  manifest: null }
+  - { id: devfactory-core,       url: "https://github.com/monthop-gmail/devfactory-core",       visibility: public, default_branch: main,   exists: true,  manifest: platform-contract.yaml }
+  - { id: care-agent-platform,   url: "https://github.com/monthop-gmail/care-agent-platform",   visibility: public, default_branch: main,   exists: true,  manifest: platform-contract.yaml }
+  - { id: enterprise-knowledge,  url: "https://github.com/monthop-gmail/enterprise-knowledge",  visibility: public, default_branch: main,   exists: true,  manifest: null }
+  - { id: ai-web-harness,        url: "https://github.com/monthop-gmail/ai-web-harness",        visibility: public, default_branch: main,   exists: true,  manifest: null }
+  - { id: navi-ims,              url: "https://github.com/monthop-gmail/navi-ims",              visibility: unknown, default_branch: master, exists: true, manifest: null }
+  - { id: ecosystem-intelligence, url: "https://github.com/monthop-gmail/ecosystem-intelligence", visibility: public, default_branch: main, exists: true, manifest: null }
+  - { id: agent-gateway,         url: null, visibility: null, default_branch: null, exists: false, manifest: null }
+  - { id: agent-backend-os,      url: null, visibility: null, default_branch: null, exists: false, manifest: null }
+  - { id: agent-fleet,           url: null, visibility: null, default_branch: null, exists: false, manifest: null }
+  - { id: model-gateway,         url: null, visibility: null, default_branch: null, exists: false, manifest: null }
+  - { id: navi-security-agent,   url: null, visibility: null, default_branch: null, exists: false, manifest: null }
+  - { id: farm-agent,            url: null, visibility: null, default_branch: null, exists: false, manifest: null }
+  - { id: odoo-farm,             url: null, visibility: null, default_branch: null, exists: false, manifest: null }
+
+# ─────────────────────────────────────────────────────────────────────────
+# COMPONENTS
+#
+# consumes            = contract ที่ pin ไว้จริงใน platform-contract.yaml ของ repo นั้น
+#                       (มีหลักฐาน — ใช้เป็นแกนของ impact analysis ได้)
+# expected_contracts  = contract ที่ plane หรือ roadmap บอกว่าควรใช้ แต่ยังไม่มีใครยืนยัน
+#                       (เป็นความตั้งใจ ไม่ใช่หลักฐาน — ห้ามเอาไปคำนวณ impact)
+# ─────────────────────────────────────────────────────────────────────────
+components:
+  - id: agent-platform
+    name: Agent Platform
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: เป็นผู้นิยาม plane และ contract ไม่ใช่ผู้ implement plane ใด
+    owner: platform-team
+    repository: agent-platform
+    status: active
+    exposes: [identity/v1, agent/v1, capability/v1, provider/v1, model/v1, tool/v1, mcp/v1,
+              execution/v1, policy/v1, artifact/v1, error/v1, profile/v1, consent/v1,
+              approval/v1, event/v1]
+    consumes: []
+    conformance: { status: not-applicable }
+
+  - id: devfactory-core
+    name: DevFactory Core
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: delivery foundation อยู่เหนือ plane model ของ agent-platform
+    owner: delivery-team
+    repository: devfactory-core
+    status: active
+    exposes: []
+    consumes: [identity/v1, execution/v1, policy/v1, error/v1, approval/v1, event/v1]
+    conformance:
+      status: passing
+      manifest: platform-contract.yaml
+      pinned_commit: 3a01ab9d0a68594463382b0ec618dc07ccf6408c
+      last_verified: 2026-08-19
+      evidence: conformance/payload_check.py — 37 event/รอบ ข้าม 2 tenant รันทุก PR
+
+  - id: care-agent-platform
+    name: Care Agent Platform
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: domain consumer ไม่ได้ implement plane กลาง
+    owner: care-team
+    repository: care-agent-platform
+    status: active
+    exposes: []
+    consumes: [identity/v1, event/v1, policy/v1, capability/v1, error/v1, consent/v1, approval/v1]
+    conformance:
+      status: passing
+      manifest: platform-contract.yaml
+      last_verified: 2026-08-19
+      evidence: conformance/payload_check.py — 58 event/รอบ รันบน sqlite และ Postgres ทุก PR
+
+  - id: enterprise-knowledge
+    name: Enterprise Knowledge
+    implements: [knowledge]
+    owner: knowledge-team
+    repository: enterprise-knowledge
+    status: in-development
+    exposes: []
+    consumes: []
+    expected_contracts: [tool/v1]
+    conformance:
+      status: unknown
+      manifest: null
+      note: >-
+        ยังไม่มี platform-contract.yaml — การ align knowledge.search กับ contract กลาง
+        วางแผนไว้ที่ enterprise-knowledge#17
+
+  - id: ai-web-harness
+    name: AI Web Harness
+    implements: [harness]
+    owner: harness-team
+    repository: ai-web-harness
+    status: scaffold
+    exposes: []
+    consumes: []
+    expected_contracts: [profile/v1]
+    conformance: { status: unknown, manifest: null }
+
+  - id: navi-ims
+    name: Navi IMS
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: system of record (Odoo 19) ไม่ใช่ agent consumer โดยตรง
+    owner: ims-team
+    repository: navi-ims
+    status: active
+    exposes: []
+    consumes: []
+    conformance: { status: unknown, manifest: null }
+
+  - id: ecosystem-intelligence
+    name: Ecosystem Intelligence
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: อยู่เหนือ plane model — อธิบาย ecosystem ทั้งหมดรวมถึง agent-platform เอง
+    owner: ecosystem-team
+    repository: ecosystem-intelligence
+    status: in-development
+    exposes: []
+    consumes: []
+    conformance: { status: not-applicable }
+
+  # ── component ที่วางแผนไว้แต่ยังไม่มี repo ────────────────────────────
+  - id: agent-gateway
+    name: Agent Gateway
+    implements: [gateway]
+    owner: platform-team
+    repository: agent-gateway
+    status: planned
+    exposes: []
+    consumes: []
+    conformance: { status: unknown, manifest: null }
+
+  - id: agent-backend-os
+    name: Agent Backend OS
+    implements: [backend-os, runtime]
+    implements_note: บ้านของ native runtime ตาม ADR-0005 C2 — จึงกินสอง plane
+    owner: platform-team
+    repository: agent-backend-os
+    status: planned
+    exposes: []
+    consumes: []
+    expected_contracts: [identity/v1, execution/v1]
+    conformance: { status: unknown, manifest: null }
+
+  - id: agent-fleet
+    name: Agent Fleet
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: fan-out ไม่ใช่ plane ใน 11 ตัว — และไม่ใช่ gateway
+    owner: platform-team
+    repository: agent-fleet
+    status: planned
+    exposes: []
+    consumes: []
+    expected_contracts: [execution/v1, capability/v1]
+    conformance: { status: unknown, manifest: null }
+
+  - id: model-gateway
+    name: Model Gateway
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: outbound provider access — gateway plane จำกัดความหมายไว้ที่ inbound เท่านั้น
+    owner: platform-team
+    repository: model-gateway
+    status: planned
+    exposes: []
+    consumes: []
+    expected_contracts: [provider/v1, capability/v1]
+    conformance: { status: unknown, manifest: null }
+
+  - id: navi-security-agent
+    name: Navi Security Agent
+    implements: [evals]
+    owner: platform-team
+    repository: navi-security-agent
+    status: planned
+    exposes: []
+    consumes: []
+    expected_contracts: [event/v1, policy/v1]
+    conformance: { status: unknown, manifest: null }
+
+  - id: farm-agent
+    name: Farm Agent
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: domain agent ยังไม่ระบุ plane
+    owner: platform-team
+    repository: farm-agent
+    status: planned
+    exposes: []
+    consumes: []
+    expected_contracts: [agent/v1, tool/v1]
+    conformance: { status: unknown, manifest: null }
+
+  - id: odoo-farm
+    name: Odoo Farm
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: ยังไม่ระบุ — agent-platform#20 เปิดค้างไว้
+    owner: ims-team
+    repository: odoo-farm
+    status: planned
+    exposes: []
+    consumes: []
+    conformance: { status: unknown, manifest: null }
