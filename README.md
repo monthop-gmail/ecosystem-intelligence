@@ -66,8 +66,8 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 
 | Milestone | ชื่อ | สาระ |
 | --- | --- | --- |
-| **M0** | Ecosystem Foundation | นิยาม entity / relationship / ownership → `ecosystem.yaml` |
-| **M1** | Ecosystem Graph | PostgreSQL, Ecosystem Graph API, import ecosystem definition, repository registry |
+| **M0** ✅ | Ecosystem Foundation | นิยาม entity / relationship / ownership → `ecosystem.yaml` |
+| **M1** ✅ | Ecosystem Graph | PostgreSQL, Ecosystem Graph API, import ecosystem definition, repository registry |
 | **M2** | Team Advisor | Team context, Ask API, LLM reasoning, recommended work ← **MVP อยู่ตรงนี้** |
 | **M3** | GitHub Intelligence | Repository sync, issues, PRs, current work detection |
 | **M4** | Impact Analysis | Dependency graph, change analysis, cross-team impact |
@@ -85,27 +85,67 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 
 ## สถานะ
 
-✅ **M0 — Ecosystem Foundation** — Ecosystem Map v0.1 พร้อมแล้ว
-ครอบคลุมของจริง 15 contracts · 11 planes · 14 components · 14 repositories · 7 teams
+| Milestone | สถานะ |
+| --- | --- |
+| **M0 — Ecosystem Foundation** | ✅ เสร็จ — Ecosystem Map v0.1 |
+| **M1 — Ecosystem Graph** | ✅ เสร็จ — PostgreSQL + import + read-only API + registry |
+| **M2 — Team Advisor** | ⏭️ ถัดไป — MVP และ DoD อยู่ตรงนี้ |
+
+ครอบคลุมของจริง **15 contracts · 11 planes · 14 components · 14 repositories · 7 teams**
+
+## เริ่มใช้งาน
 
 ```bash
-make validate          # โครงสร้าง + referential integrity + กฎของ ecosystem
-make validate-github   # ตรวจเพิ่มว่า repo ที่ประกาศไว้มีอยู่จริง
+make install           # .venv + dependency
+cp .env.example .env
+
+make validate          # ตรวจ ecosystem.yaml — ไม่ต้องมี DB
+make up && make schema # PostgreSQL (พอร์ต 55434) + migration
+make import            # นำ ecosystem.yaml เข้า graph
+make api               # http://localhost:8000/docs
 ```
 
-⏭️ ถัดไป **M1 — Ecosystem Graph** ยกข้อมูลชุดนี้ขึ้นเป็น graph ที่ query ได้
+```bash
+make test        # unit test — ไม่ต้องมี DB (ที่ต้องใช้ DB จะข้ามเอง)
+make test-all    # ทั้งหมด
+make registry    # ทะเบียน repository + เทียบกับ GitHub จริง
+```
+
+## ตัวอย่างที่ตอบได้แล้ววันนี้
+
+```bash
+curl localhost:8000/contracts/execution/v1/impact
+```
+```json
+{ "affected_components": ["devfactory-core"],
+  "affected_teams": ["delivery-team"],
+  "consumers": [{ "conformance": "passing", "pinned_commit": "3a01ab9d…" }],
+  "expected_by": ["agent-backend-os", "agent-fleet"],
+  "closable": false }
+```
+
+```bash
+curl localhost:8000/teams/delivery-team/components      # ทีมนี้ดูแลอะไร
+curl localhost:8000/components/agent-platform/dependents # เปลี่ยนแล้วใครกระทบ
+curl localhost:8000/graph/cycles                         # มี circular dependency ไหม
+```
 
 ## ไฟล์สำคัญ
 
 | ไฟล์ | คืออะไร |
 | --- | --- |
-| [`ecosystem.yaml`](ecosystem.yaml) | **Ecosystem Map v0.1** — แหล่งความจริงเรื่อง team, ownership และ repo↔component↔plane mapping |
-| [`docs/entities.md`](docs/entities.md) | data model + เหตุผลที่เลือกแบบนี้ รวมถึงสิ่งที่จงใจไม่ทำ |
+| [`ecosystem.yaml`](ecosystem.yaml) | **แหล่งความจริง** — team, ownership, repo↔component↔plane mapping · DB เป็นแค่สำเนาที่ query ได้ |
+| [`docs/entities.md`](docs/entities.md) | data model + เหตุผลที่เลือกแบบนี้ + สิ่งที่จงใจไม่ทำ |
 | [`schema/ecosystem.schema.json`](schema/ecosystem.schema.json) | JSON Schema ของไฟล์ข้างบน |
-| [`tools/validate_ecosystem.py`](tools/validate_ecosystem.py) | validator — stdlib + pyyaml (jsonschema ถ้ามี) |
+| [`migrations/`](migrations/) | schema ของ graph — ไม่แก้ด้วยมือ |
+| [`src/ecosystem_graph/`](src/ecosystem_graph/) | validate · migrate · import · queries · api · registry |
+| [`docs/openapi.json`](docs/openapi.json) | OpenAPI spec — CI ตรวจว่าตรงกับโค้ดเสมอ |
 
 > ⚠️ **repo นี้ไม่ใช่เจ้าของ contract** — schema เป็นของ [`agent-platform`](https://github.com/monthop-gmail/agent-platform/tree/main/contracts)
 > เปลี่ยนได้ผ่าน ADR เท่านั้น เราอ้างอิงและรวบรวม ไม่ประกาศแทน ([เหตุผล](docs/entities.md))
+>
+> ⚠️ **API อ่านอย่างเดียว** — บังคับด้วย `SET TRANSACTION READ ONLY` ที่ระดับ PostgreSQL
+> ไม่ใช่แค่ไม่มี route ที่เขียน · การเปลี่ยนแปลงทำผ่าน `make import` ทางเดียว
 
 ## Reference
 

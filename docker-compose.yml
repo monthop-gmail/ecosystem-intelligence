@@ -1,0 +1,22 @@
+# PostgreSQL สำหรับ Ecosystem Graph
+# พอร์ต 55434 — เลี่ยงชนกับ enterprise-knowledge ที่ใช้ 55433
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ecosystem-graph-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ecosystem}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecosystem}
+      POSTGRES_DB: ${POSTGRES_DB:-ecosystem}
+    ports:
+      - "${POSTGRES_PORT:-55434}:5432"
+    volumes:
+      - ecosystem-graph-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecosystem} -d ${POSTGRES_DB:-ecosystem}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  ecosystem-graph-data:

@@ -1,0 +1,33 @@
+[project]
+name = "ecosystem-intelligence"
+version = "0.1.0"
+description = "AI-powered engineering intelligence for multi-team, multi-repository ecosystems"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0",
+    "jsonschema>=4.0",
+    "psycopg[binary]>=3.1",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+ecosystem-validate = "ecosystem_graph.validate:main"
+ecosystem-import = "ecosystem_graph.importer:main"
+ecosystem-migrate = "ecosystem_graph.migrate:main"
+ecosystem-registry = "ecosystem_graph.registry:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = ["db: ต้องมี PostgreSQL (ข้ามอัตโนมัติถ้าต่อไม่ได้)"]

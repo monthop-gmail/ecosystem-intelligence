@@ -9,6 +9,7 @@ on:
 
 jobs:
   ecosystem:
+    name: ecosystem.yaml
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,3 +24,40 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: make validate-github
+
+  graph:
+    name: ecosystem graph
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ecosystem
+          POSTGRES_PASSWORD: ecosystem
+          POSTGRES_DB: ecosystem
+        ports: ["55434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ecosystem -d ecosystem"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      ECOSYSTEM_DSN: postgresql://ecosystem:ecosystem@localhost:55434/ecosystem
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: migrate + import
+        run: |
+          python -m ecosystem_graph.migrate
+          python -m ecosystem_graph.importer
+      - name: import ซ้ำต้องไม่มีส่วนต่าง
+        run: python -m ecosystem_graph.importer | tee /tmp/second.txt
+      - name: ยืนยัน idempotent
+        run: grep -q "ไม่มีส่วนต่าง" /tmp/second.txt
+      - name: tests
+        run: pytest -q
+      - name: OpenAPI spec ที่ commit ไว้ต้องตรงกับโค้ด
+        run: |
+          python tools/export_openapi.py
+          git diff --exit-code docs/openapi.json
