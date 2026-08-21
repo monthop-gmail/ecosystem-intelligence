@@ -99,14 +99,28 @@ def guarantees(payloads: list[dict]) -> list[str]:
         if e["subject_type"] == "record" and not meta.get("record_type"):
             problems.append(f"{tag}: subject_type=record แต่ไม่มี metadata.record_type")
 
-    # 8. sequence ใช้เรียงภายใน correlation เดียวกัน ต้องไม่ซ้ำกันเอง
-    by_corr: dict[str, list[int]] = {}
+    # 8. sequence เรียง event **ภายใน subject เดียวกัน** ไม่ใช่ภายใน correlation
+    #
+    # เดิมตรวจที่ระดับ correlation ซึ่งเป็นคนละ scope กับที่ event/v1 นิยามไว้
+    # ทำให้ผ่านทั้งที่ทุก subject มี event ใบเดียวและ sequence เป็น 1 ตลอด
+    # — field ที่มีค่าแต่ไม่พาข้อมูล หลอกผู้อ่านให้คิดว่าเรียงได้ (devfactory-core#32)
+    by_subject: dict[str, list[int]] = {}
     for e in payloads:
-        if e.get("correlation_id") and e.get("sequence") is not None:
-            by_corr.setdefault(e["correlation_id"], []).append(e["sequence"])
-    for corr, seqs in by_corr.items():
+        if e.get("sequence") is not None:
+            by_subject.setdefault(e["subject_id"], []).append(e["sequence"])
+    for subject, seqs in by_subject.items():
         if len(seqs) != len(set(seqs)):
-            problems.append(f"correlation {corr}: sequence ซ้ำกันเอง")
+            problems.append(f"subject {subject}: sequence ซ้ำกันเอง")
+        elif sorted(seqs) != list(range(1, len(seqs) + 1)):
+            problems.append(f"subject {subject}: sequence ไม่ต่อเนื่องจาก 1 — {sorted(seqs)}")
+
+    # subject ที่มี event ใบเดียวไม่ผิด — รอบที่มีข้อเสนอเดียวก็มีจริง
+    # ที่ผิดคือ **ทั้งชุดไม่มี subject ไหนเกินหนึ่งใบเลย** แปลว่า sequence
+    # เพิ่มไม่ได้โดยโครงสร้าง ไม่ใช่โดยข้อมูล — นั่นคือ scope ผิด
+    if by_subject and all(len(s) == 1 for s in by_subject.values()):
+        problems.append(
+            f"sequence ไม่เคยเกิน 1 เลยทั้งชุด ({len(by_subject)} subject) "
+            f"— แปลว่าเพิ่มไม่ได้โดยโครงสร้าง scope ของ subject น่าจะผิด")
 
     return problems
 

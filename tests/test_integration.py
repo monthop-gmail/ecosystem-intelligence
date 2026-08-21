@@ -95,6 +95,49 @@ def test_หนึ่งข้อเสนอหนึ่งใบ_ผูกก�
     assert [e["sequence"] for e in evs] == [1, 2]
 
 
+def test_subject_คือรอบ_ไม่ใช่ข้อเสนอแต่ละข้อ(sample_result):
+    """sequence ของ event/v1 เรียงภายใน subject เดียวกัน — ถ้าแต่ละข้อเป็น subject
+    ของตัวเอง sequence จะเป็น 1 ตลอดและไม่พาข้อมูลลำดับไปเลย (devfactory-core#32)"""
+    evs = events.advisory_events(sample_result)
+    assert len({e["subject_id"] for e in evs}) == 1, "ทุกใบในรอบเดียวต้อง subject เดียวกัน"
+    assert evs[0]["subject_id"] == evs[0]["correlation_id"]
+
+
+def test_drift_ไม่มี_sequence():
+    """แต่ละ finding เป็นเรื่องของ entity คนละตัว ไม่มีลำดับระหว่างกัน"""
+    findings = [{"rule": f"r{i}", "severity": "error", "subject": f"s{i}",
+                 "detail": "d", "fix": "f", "title": "t", "why": "w"} for i in range(3)]
+    evs = events.drift_events(findings)
+    assert len(evs) == 3
+    assert all("sequence" not in e for e in evs)
+    assert len({e["subject_id"] for e in evs}) == 3, "แต่ละ finding มี subject ของตัวเอง"
+
+
+def test_event_id_ผูกกับเนื้อหา_ไม่ใช่เวลา(sample_result):
+    """ปลายทางอ่านซ้ำได้โดยไม่เกิดใบซ้ำ — เป็นเงื่อนไขที่ทำให้ไม่ต้องมี cursor"""
+    a = events.advisory_events(sample_result, occurred_at="2026-01-01T00:00:00Z")
+    b = events.advisory_events(sample_result, occurred_at="2099-12-31T23:59:59Z")
+    assert [e["event_id"] for e in a] == [e["event_id"] for e in b], \
+        "เวลาต่างกันแต่เนื้อหาเดิม ต้องได้ id เดิม"
+    assert a[0]["occurred_at"] != b[0]["occurred_at"]
+
+
+def test_เนื้อหาเปลี่ยน_id_ต้องเปลี่ยน(sample_result):
+    import copy
+    changed = copy.deepcopy(sample_result)
+    changed["answer"]["recommended_next_steps"][0]["title"] = "อย่างอื่น"
+    assert (events.advisory_events(sample_result)[0]["event_id"]
+            != events.advisory_events(changed)[0]["event_id"])
+
+
+def test_drift_id_ก็ผูกกับเนื้อหา():
+    f = [{"rule": "r", "severity": "error", "subject": "s", "detail": "d",
+          "fix": "f", "title": "t", "why": "w"}]
+    a = events.drift_events(f, occurred_at="2026-01-01T00:00:00Z")
+    b = events.drift_events(f, occurred_at="2099-01-01T00:00:00Z")
+    assert a[0]["event_id"] == b[0]["event_id"]
+
+
 def test_ห้ามปลอม_job_id(sample_result):
     """RFC-0008: event ที่ไม่ได้เกิดจาก job ต้องไม่มี job_id ไม่ใช่ใส่ค่าปลอม"""
     for e in events.advisory_events(sample_result):

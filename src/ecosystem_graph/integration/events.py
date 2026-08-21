@@ -16,6 +16,14 @@ ecosystem นี้เตือนตัวเองไว้ใน `planes/READ
   (ยืนยันด้วยการ validate กับ schema ที่ pin ไว้ ไม่ได้อนุมานจากคำอธิบาย)
 - `subject_type: record` — advisory เป็นบันทึกของโดเมนที่ไม่ได้เกิดจาก job
   ชนิดจริงอยู่ใน `metadata.record_type` ตามที่ schema กำหนด
+- **subject ของ advisory คือ "รอบการให้คำแนะนำ" ไม่ใช่ข้อเสนอแต่ละข้อ**
+  เพราะ `sequence` ของ `event/v1` เรียง event **ภายใน subject เดียวกัน**
+  ถ้าให้แต่ละข้อเป็น subject ของตัวเอง จะมี event ใบเดียวต่อ subject
+  `sequence` ก็เป็น 1 ตลอดและไม่พาข้อมูลลำดับไปเลย (devfactory-core#32)
+- **drift ไม่มี `sequence`** — แต่ละ finding เป็นเรื่องของ entity คนละตัว ไม่มีลำดับ
+  ระหว่างกัน · field ที่มีค่าแต่ไม่มีความหมาย หลอกผู้อ่านให้คิดว่าเรียงได้
+- **`event_id` ผูกกับ "เนื้อหา" ไม่ใช่ "เวลาที่รัน"** — คำแนะนำชุดเดิมบน ecosystem
+  สถานะเดิม ได้ id เดิมเสมอ ทำให้ปลายทางอ่านซ้ำได้โดยไม่เกิดใบซ้ำ และไม่ต้องมี cursor
 - `source.kind` — **บอกขอบเขตที่ event กำลังข้าม ณ ตอนที่เขียนลง ไม่ใช่คุณสมบัติติดตัว event**
   emitter ตัวนี้มีไว้ส่งข้ามขอบเขตออกไปอย่างเดียว จึงเป็น `external` เสมอ
   ถ้าวันหนึ่งเราเก็บ event ของตัวเองลง log ของตัวเอง ทางนั้นต้องเรียกด้วย
@@ -28,6 +36,7 @@ ecosystem นี้เตือนตัวเองไว้ใน `planes/READ
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -41,6 +50,15 @@ SOURCE_SYSTEM = "ecosystem-intelligence"
 DEFAULT_TENANT = "default"
 
 ID_MAX = 63
+
+
+def _digest(*parts: Any) -> str:
+    """ลายนิ้วมือของเนื้อหา — id ต้องเปลี่ยนเมื่อเนื้อหาเปลี่ยน ไม่ใช่เมื่อเวลาเปลี่ยน"""
+    blob = "\u0000".join(
+        json.dumps(p, ensure_ascii=False, sort_keys=True) if not isinstance(p, str) else p
+        for p in parts
+    )
+    return hashlib.sha256(blob.encode()).hexdigest()[:12]
 
 
 def _id(*parts: str) -> str:
@@ -75,17 +93,22 @@ def advisory_events(result: dict[str, Any], *, tenant_id: str = DEFAULT_TENANT,
     answer = result["answer"]
     team = answer["team"]
     stamp = occurred_at or _now()
-    correlation = _id("adv", team, hashlib.sha256(
-        f"{team}|{result['question']}|{stamp}".encode()).hexdigest()[:10])
+    steps = answer["recommended_next_steps"]
+
+    # id มาจากเนื้อหา ไม่ใช่จากเวลา — คำแนะนำชุดเดิมบน ecosystem สถานะเดิม
+    # ต้องได้ id เดิม ไม่งั้นปลายทางที่อ่านซ้ำจะได้ใบซ้ำที่ระบบเขามองไม่ออกว่าซ้ำ
+    correlation = _id("adv", team, _digest(team, result["question"],
+                                           result.get("as_of") or "", steps))
 
     events: list[dict[str, Any]] = []
-    for i, step in enumerate(answer["recommended_next_steps"], start=1):
+    for i, step in enumerate(steps, start=1):
         events.append({
             "event_id": _id(correlation, str(i)),
             "event_type": ADVISORY_ISSUED,
             "tenant_id": tenant_id,
             "subject_type": "record",
-            "subject_id": _id(correlation, str(i)),
+            # subject = รอบการให้คำแนะนำ ไม่ใช่ข้อเสนอแต่ละข้อ — sequence จึงเรียงได้จริง
+            "subject_id": correlation,
             "correlation_id": correlation,
             "occurred_at": stamp,
             "sequence": i,
@@ -115,18 +138,19 @@ def drift_events(findings: list[dict[str, Any]], *, tenant_id: str = DEFAULT_TEN
     """
     stamp = occurred_at or _now()
     errors = [f for f in findings if f["severity"] == "error"]
-    correlation = _id("drift", hashlib.sha256(
-        "|".join(f"{f['rule']}:{f['subject']}" for f in errors).encode()).hexdigest()[:10])
+    correlation = _id("drift", _digest(
+        [{"rule": f["rule"], "subject": f["subject"], "detail": f["detail"]} for f in errors]))
 
     return [{
-        "event_id": _id(correlation, str(i)),
+        # แต่ละ finding เป็นเรื่องของ entity คนละตัว — subject จึงเป็นตัวมันเอง
+        # และไม่มี sequence เพราะไม่มีลำดับระหว่างกัน
+        "event_id": _id("drift", _digest(f["rule"], f["subject"], f["detail"])),
         "event_type": DRIFT_DETECTED,
         "tenant_id": tenant_id,
         "subject_type": "record",
         "subject_id": _id(f["rule"], f["subject"]),
         "correlation_id": correlation,
         "occurred_at": stamp,
-        "sequence": i,
         "source": _source(boundary),
         "metadata": {
             "record_type": "ecosystem_drift",
@@ -135,7 +159,7 @@ def drift_events(findings: list[dict[str, Any]], *, tenant_id: str = DEFAULT_TEN
             "detail": f["detail"],
             "fix": f["fix"],
         },
-    } for i, f in enumerate(errors, start=1)]
+    } for f in errors]
 
 
 def assert_outbound(payloads: list[dict[str, Any]]) -> None:
