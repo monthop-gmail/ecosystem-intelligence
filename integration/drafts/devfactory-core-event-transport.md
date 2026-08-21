@@ -1,4 +1,4 @@
-<!-- ร่างสำหรับเปิดที่ monthop-gmail/devfactory-core — ยังไม่ได้เปิด -->
+<!-- ร่างสำหรับเปิดที่ monthop-gmail/devfactory-core — เปิดแล้วที่ https://github.com/monthop-gmail/devfactory-core/issues/32 เมื่อ 2026-08-22 -->
 # ตกลงเรื่อง transport ของ event จาก `ecosystem-intelligence`
 
 `ecosystem-intelligence` ปล่อย `event/v1` ที่ conform แล้ว แต่ยังไม่มีทางส่งถึงใคร

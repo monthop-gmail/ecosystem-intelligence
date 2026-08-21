@@ -103,7 +103,10 @@ conformance ที่ตรวจใหม่ · component ที่ยังเ
 บันทึกไว้ใน `platform-contract.yaml` หัวข้อ `blocking:` ตามแบบที่ consumer รายอื่นทำ
 
 1. **`agent-platform/architecture/consumers.md` ยังไม่มีแถวของเรา** — เป็นการแก้ที่ repo ของเขา
+   → เปิด issue แล้ว [agent-platform#40](https://github.com/monthop-gmail/agent-platform/issues/40)
 2. **event ที่ปล่อยออกมายังไม่มีใครรับ** — `devfactory-core` รับ `event/v1` ได้ตามสัญญาอยู่แล้ว
    แต่การต่อท่อจริงต้องตกลงเรื่อง transport กันก่อน
+   → เปิด issue แล้ว [devfactory-core#32](https://github.com/monthop-gmail/devfactory-core/issues/32)
 
-ทั้งสองข้อมีร่าง issue เตรียมไว้ที่ [`integration/drafts/`](../integration/drafts/) — **ยังไม่ได้เปิดให้**
+ร่างต้นฉบับอยู่ที่ [`integration/drafts/`](../integration/drafts/) และผูกกลับเข้า
+`platform-contract.yaml` หัวข้อ `blocking:` เพื่อให้ตามรอยได้ว่าค้างอยู่ที่ไหน

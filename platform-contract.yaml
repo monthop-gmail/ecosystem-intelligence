@@ -55,13 +55,15 @@ blocking:
       agent-platform/architecture/consumers.md ยังไม่มีแถวของ repo นี้
       — เป็นการแก้ที่ repo ของเขา เราทำฝ่ายเดียวไม่ได้
     severity: low
-    status: pending   # ต้องเปิด issue ที่ agent-platform
+    status: raised
+    issue: https://github.com/monthop-gmail/agent-platform/issues/40
 
   - id: no-consumer-of-our-events
     detail: >-
       event ที่ปล่อยออกมายังไม่มีใครรับไปทำต่อ — devfactory-core รับ event/v1
       ได้ตามสัญญาอยู่แล้ว แต่การต่อท่อจริงต้องตกลงเรื่อง transport กันก่อน
     severity: medium
-    status: pending
+    status: raised
+    issue: https://github.com/monthop-gmail/devfactory-core/issues/32
 
 registration: conforming   # registered | conforming
