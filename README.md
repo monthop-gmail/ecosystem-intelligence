@@ -62,6 +62,8 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 
 ## Roadmap
 
+งานทั้งหมดแตกเป็น issue ไว้แล้วใต้ [milestones](https://github.com/monthop-gmail/ecosystem-intelligence/milestones) (26 issues)
+
 | Milestone | ชื่อ | สาระ |
 | --- | --- | --- |
 | **M0** | Ecosystem Foundation | นิยาม entity / relationship / ownership → `ecosystem.yaml` |
