@@ -31,7 +31,7 @@ rules:
       external provider) แต่ถ้าไม่ได้ตั้งใจ นี่คืออาการของการสร้าง abstraction ซ้ำ
       ซึ่งเป็นความผิดพลาดที่ ecosystem นี้เคยเจอมาแล้ว
     fix: ยืนยันว่าตั้งใจ หรือยุบให้เหลือตัวเดียว แล้วบันทึกเหตุผลไว้ใน ADR
-    source: ecosystem.yaml goal no-duplicate-abstraction
+    source: agent-platform/planes/README.md — เส้นแบ่งที่คนสับสนบ่อย
 
   - id: execution-owns-governance
     severity: error

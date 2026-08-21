@@ -75,9 +75,13 @@ def _write(conn, doc: dict) -> None:
     ex("INSERT INTO ecosystem_meta (key, value) VALUES (%s, %s)",
        ("apiVersion", doc["apiVersion"]))
 
-    for g in doc.get("mission", {}).get("goals", []):
-        ex("INSERT INTO ecosystem_goals (id, goal, source) VALUES (%s, %s, %s)",
-           (g["id"], g["goal"], g["source"]))
+    mission = doc.get("mission", {})
+    for g in mission.get("goals", []):
+        ex("""INSERT INTO ecosystem_goals (id, goal, decided_by, decided_at)
+              VALUES (%s, %s, %s, %s)""",
+           (g["id"], g["goal"],
+            g.get("decided_by") or mission.get("decided_by"),
+            g.get("decided_at") or mission.get("decided_at")))
 
     for rule in doc.get("architecture_rules", []):
         ex("INSERT INTO architecture_rules (id, rule) VALUES (%s, %s)", (rule["id"], rule["rule"]))

@@ -7,7 +7,7 @@
 อยู่แล้วคือ `event/v1` และ `devfactory-core` ก็ pin มันไว้จริง
 
 การสร้างรูปแบบใหม่ขึ้นมาข้าง ๆ contract ที่มีอยู่ คือความผิดพลาดแบบเดียวกับที่
-ecosystem นี้เตือนตัวเองไว้ (goal `no-duplicate-abstraction`)
+ecosystem นี้เตือนตัวเองไว้ใน `planes/README.md`
 
 **ข้อจำกัดที่ตรวจกับ schema จริงแล้ว**
 

@@ -219,6 +219,25 @@ def check_rules(res: Result, doc: dict, repo_by_id: dict[str, dict]) -> None:
         if r["id"] not in used_repos:
             res.warn(f"repository {r['id']}: ไม่มี component ไหนอ้างถึง")
 
+    # เป้าหมายที่หายไป ต้องรายงานว่าหายไป ไม่ใช่เอากติกามาติดป้ายแทน
+    mission = doc.get("mission") or {}
+    goals = mission.get("goals") or []
+    if not goals:
+        res.warn("ไม่มีเป้าหมายระดับ ecosystem — advisor จะตอบว่า 'ทำไม' ไม่ได้ "
+                 "อย่าเอากติกามาเติมแทน เป้าหมายต้องมีคนตัดสิน")
+    for g in goals:
+        if not (g.get("decided_by") or mission.get("decided_by")):
+            res.err(f"mission.goals.{g['id']}: ไม่ระบุว่าใครตัดสิน "
+                    f"— ไม่มีเอกสารไหนใน ecosystem เขียนเป้าหมายไว้ จึง derive ไม่ได้ "
+                    f"เป้าหมายที่ไม่มีเจ้าของคือเป้าหมายที่ใครก็แต่งเพิ่มได้")
+
+    # เป้าหมายที่ไปซ้ำกับกฎ ทำให้ advisor ตอบวนกลับที่ตัวเอง
+    rule_ids = {r["id"] for r in doc.get("architecture_rules", [])}
+    for g in goals:
+        if g["id"] in rule_ids:
+            res.err(f"mission.goals.{g['id']}: ชื่อชนกับ architecture_rules "
+                    f"— เป้าหมายกับกฎต้องไม่ใช่ของเดียวกัน")
+
     # ข้อมูล ownership ต้องไม่ดูน่าเชื่อกว่าที่มันเป็น
     member_sets = {frozenset(t["members"]) for t in doc["teams"]}
     if len(member_sets) == 1 and len(doc["teams"]) > 1:

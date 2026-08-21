@@ -17,7 +17,9 @@ def meta(conn) -> dict[str, str]:
 
 
 def goals(conn) -> list[dict]:
-    return fetch_all(conn, "SELECT id, goal, source FROM ecosystem_goals ORDER BY id")
+    """เป้าหมายระดับ ecosystem — decided_by บอกว่าใครตัดสิน ไม่ใช่อ้างมาจากไหน"""
+    return fetch_all(conn, "SELECT id, goal, decided_by, decided_at "
+                           "FROM ecosystem_goals ORDER BY id")
 
 
 def architecture_rules(conn) -> list[dict]:

@@ -52,15 +52,19 @@ class OfflineProvider:
             risks.append(f"{w} ประกาศเจตนาจะใช้ — เปลี่ยนตอนนี้จะเพิ่มงานให้เขา")
         return {"potential_risks": risks, "recommended_coordination": steps}
 
-    # ผูกกฎแต่ละข้อกับเป้าหมายระดับ ecosystem ที่มันรับใช้
+    # ผูกกฎแต่ละข้อกับเป้าหมายที่มัน **รับใช้** — ไม่ใช่กับตัวมันเองที่เขียนใหม่
+    #
+    # รอบแรก mapping นี้ชี้ไปที่ goal ที่เป็นการเขียนกฎข้อเดิมซ้ำ ทำให้คำตอบวนกลับ
+    # ที่ตัวเอง: "ทำให้ conform เพราะ conformance ต้องพิสูจน์ได้" ซึ่งไม่ใช่เหตุผล
+    # ตอนนี้กฎเป็นกลไก เป้าหมายเป็นผลลัพธ์ และสองอย่างไม่ใช่ของเดียวกัน
     GOAL_OF_RULE = {
-        "conform": "conformance-provable",
-        "pin": "conformance-provable",
-        "planned": "ownership-unambiguous",
-        "stale": "conformance-provable",
-        "semantics": "contract-single-source",
-        "unused": "no-duplicate-abstraction",
-        "review": "one-ecosystem-view",
+        "conform": "declared-equals-real",     # ประกาศว่า pin แล้ว → พิสูจน์ให้ได้
+        "pin": "declared-equals-real",
+        "stale": "declared-equals-real",
+        "planned": "declared-equals-real",     # อยู่ในแผนแต่ยังไม่มี repo
+        "semantics": "contract-change-without-surprise",
+        "unused": "contract-change-without-surprise",
+        "review": "team-sees-its-place",
     }
 
     def _recommendation(self, ctx: dict[str, Any]) -> dict[str, Any]:

@@ -36,26 +36,34 @@ sources:
 
 # เป้าหมายระดับ ecosystem — ใช้ตอบคำถาม "ทำไมต้องทำสิ่งนี้ก่อน"
 #
-# M0 เลื่อนส่วนนี้ไว้เพราะยังไม่รู้ว่า advisor ต้องใช้รูปแบบไหน — ตอนนี้ M2 รู้แล้ว
-# ทุกข้อมี source ที่ตรวจย้อนได้ ไม่ได้แต่งขึ้นมา แต่การ "ยกระดับ" หลักการเหล่านี้
-# เป็นเป้าหมายของ ecosystem เป็นการตีความ — ต้องให้เจ้าของ ecosystem ยืนยัน
+# ⚠️ สามข้อนี้ **ตัดสินโดย Architecture Owner** ไม่ได้ derive มาจากเอกสารไหน
+#    เพราะไม่มีเอกสารไหนในทั้ง ecosystem เขียนเป้าหมายไว้เลย (ค้น 3 repo ได้ 0 ผลลัพธ์)
+#
+# รอบแรกผมใส่ไว้ 5 ข้อโดยเอา "กติกา" มาติดป้ายว่า "เป้าหมาย" — contract เป็นแหล่ง
+# ความจริงเดียว · conformance ต้องพิสูจน์ได้ · ทุก component มีเจ้าของ · ห้ามสร้าง
+# abstraction ซ้ำ ทั้งสี่ข้อเป็นกฎที่มี ADR หรือ guardian rule บังคับอยู่แล้ว
+# การเขียนซ้ำเป็นเป้าหมายทำให้ advisor ตอบวนกลับที่ตัวเอง: "ทำ X เพราะกฎ X"
+#
+# เป้าหมายตอบว่า "อยากไปถึงอะไร" · กติกาตอบว่า "ห้ามทำอะไร" — คนละชั้น
 mission:
+  decided_by: architecture-owner
+  decided_at: 2026-08-22
+  context: ref/chatgpt-ecosystem-overview.md   # ที่มาของโจทย์ ไม่ใช่ที่มาของเป้าหมาย
   goals:
-    - id: one-ecosystem-view
-      goal: ทุกทีมถาม AI จากมุมของตัวเองได้ โดย AI ใช้ภาพ ecosystem เดียวกันในการตอบ
-      source: ref/chatgpt-ecosystem-overview.md
-    - id: contract-single-source
-      goal: contract เป็นแหล่งความจริงเดียวของ interface ระหว่างทีม เปลี่ยนได้ผ่าน ADR เท่านั้น
-      source: https://github.com/monthop-gmail/agent-platform/tree/main/contracts
-    - id: no-duplicate-abstraction
-      goal: ไม่สร้าง abstraction ซ้ำกับที่ ecosystem มีอยู่แล้ว
-      source: https://github.com/monthop-gmail/agent-platform/blob/main/planes/README.md
-    - id: conformance-provable
-      goal: การใช้ contract ต้องพิสูจน์ได้ด้วย CI ไม่ใช่แค่ประกาศว่าใช้
-      source: https://github.com/monthop-gmail/agent-platform/blob/main/decisions/0006-contract-versioning.md
-    - id: ownership-unambiguous
-      goal: ทุก component มีเจ้าของหนึ่งทีมที่ชัดเจน ไม่มี orphan
-      source: docs/entities.md
+    - id: contract-change-without-surprise
+      goal: เปลี่ยน contract ได้โดยไม่มีทีมไหนพังแบบไม่รู้ตัว
+      decided_by: architecture-owner
+      decided_at: 2026-08-22
+
+    - id: team-sees-its-place
+      goal: ทีมตอบได้เสมอว่างานของตัวเองต่อกับภาพใหญ่ตรงไหน โดยไม่ต้องถามคน
+      decided_by: architecture-owner
+      decided_at: 2026-08-22
+
+    - id: declared-equals-real
+      goal: ของที่ประกาศว่ามี ต้องพิสูจน์ได้ว่ามีจริง — ทั้ง repo, contract และ conformance
+      decided_by: architecture-owner
+      decided_at: 2026-08-22
 
 # กฎที่ทุก plane ต้องเคารพ — input โดยตรงของ M5 Architecture Guardian
 # ที่มา: agent-platform/planes/README.md (devfactory-core RFC-0004 · ADR-0003 · ADR-0005)

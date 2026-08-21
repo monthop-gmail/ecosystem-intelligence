@@ -5,6 +5,12 @@
 ทำให้ทั้งองค์กร **รู้ว่าควรสร้างอะไร และทำไม** — ไม่ใช่ chatbot ให้ทีมถามตอบ แต่เป็นชั้น intelligence
 ที่ทุกทีมถามจากมุมของตัวเองได้ โดย AI ใช้ **ภาพ ecosystem เดียวกัน** ในการตอบ
 
+> **เป้าหมายของ repo นี้:** ทุกทีมถาม AI จากมุมของตัวเองได้ โดย AI ใช้ภาพ ecosystem เดียวกันในการตอบ
+>
+> เป้าหมายข้อนี้เคยอยู่ใน `mission.goals` ของ `ecosystem.yaml` ซึ่งผิดที่ — นั่นคือ
+> เป้าหมายของ **ecosystem** ไม่ใช่ของ repo ใด repo หนึ่ง · ecosystem จะมีเป้าหมายนี้
+> ก็ต่อเมื่อมันตัดสินใจว่าอยากมีเรา ซึ่งไม่ใช่สิ่งที่เราประกาศแทนได้
+
 ```text
                      ┌──────────────────────────────┐
                      │      ECOSYSTEM MISSION       │
@@ -144,7 +150,7 @@ curl localhost:8000/ask -H 'content-type: application/json' \
 [1] ทำให้ enterprise-knowledge conform ตาม ADR-0006
     enterprise-knowledge ยังไม่มี manifest — platform นับเป็น unknown
     ซึ่งมีผลตอนตัดสินใจปิด contract version
-    อ้างอิง: enterprise-knowledge, conformance-provable
+    อ้างอิง: enterprise-knowledge, enterprise-knowledge#17, declared-equals-real
 ```
 
 LLM รองรับ **Claude** และ **ChatGPT** สลับได้ด้วย config ตัวเดียว
