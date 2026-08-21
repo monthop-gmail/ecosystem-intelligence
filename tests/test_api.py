@@ -71,9 +71,61 @@ def test_ไม่พบ_ตอบ_404(client):
         assert client.get(path).status_code == 404
 
 
-def test_ไม่มี_route_ที่เขียนข้อมูล():
-    methods = {m for route in app.routes for m in getattr(route, "methods", set())}
-    assert methods <= {"GET", "HEAD", "OPTIONS"}, f"เจอ method ที่เขียนได้: {methods}"
+def test_มีเพียง_ask_ที่เป็น_POST():
+    """/ask เป็น POST เพราะคำถามต้องอยู่ใน body ไม่ใช่เพราะเขียนข้อมูล
+
+    ข้อรับประกันจริงเรื่อง read-only อยู่ที่ระดับฐานข้อมูล (ดูเทสต์ถัดไป)
+    ไม่ใช่ที่ HTTP method — เทสต์นี้กันไม่ให้มี route เขียนข้อมูลแอบเข้ามาโดยไม่ตั้งใจ
+    """
+    non_get = {
+        route.path: sorted(getattr(route, "methods", set()) - {"HEAD", "OPTIONS"})
+        for route in app.routes
+        if getattr(route, "methods", set()) - {"GET", "HEAD", "OPTIONS"}
+    }
+    assert non_get == {"/ask": ["POST"]}, f"เจอ route ที่ไม่ใช่ GET เกินคาด: {non_get}"
+
+
+def test_ask_ไม่เขียนอะไรลง_DB(client):
+    """POST /ask ต้องไม่เปลี่ยนข้อมูลใน graph"""
+    from ecosystem_graph.db import fetch_one
+
+    with connect() as c:
+        before = fetch_one(c, "SELECT count(*) AS n FROM components")["n"]
+    r = client.post("/ask", json={"team": "delivery-team", "question": "ทีมเราควรทำอะไรต่อ?"})
+    assert r.status_code == 200
+    with connect() as c:
+        assert fetch_one(c, "SELECT count(*) AS n FROM components")["n"] == before
+
+
+def test_ask_ตอบครบและ_grounded(client):
+    body = client.post("/ask", json={
+        "team": "knowledge-team", "question": "ทีมเราควรทำอะไรต่อ?"
+    }).json()
+    assert body["grounding"]["ok"] is True
+    assert body["generated_by"]["provider"] == "offline"
+    assert body["answer"]["recommended_next_steps"]
+
+
+def test_ask_ทีมที่ไม่มี_404(client):
+    r = client.post("/ask", json={"team": "ghost-team", "question": "อะไรก็ตาม"})
+    assert r.status_code == 404
+
+
+def test_ask_provider_ที่ไม่รู้จัก_400(client):
+    r = client.post("/ask", json={"team": "delivery-team", "question": "ควรทำอะไรต่อ?",
+                                  "provider": "gemini"})
+    assert r.status_code == 400
+
+
+def test_coordination_endpoint(client):
+    body = client.get("/contracts/approval/v1/coordination").json()
+    assert body["facts"]["semantics_owner_team"] == "delivery-team"
+    assert body["judgement"]["recommended_coordination"]
+
+
+def test_provider_endpoint(client):
+    body = client.get("/advisor/provider").json()
+    assert body["provider"] == "offline" and body["configured"] is True
 
 
 def test_read_only_ถูกบังคับที่ฐานข้อมูลจริง(loaded_db):

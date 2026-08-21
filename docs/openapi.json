@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Ecosystem Graph API",
-    "description": "Query ecosystem — component, contract, dependency, ownership\n\n**อ่านอย่างเดียว** แหล่งความจริงคือ `ecosystem.yaml` การเปลี่ยนแปลงทำผ่าน import เท่านั้น",
+    "description": "Query ecosystem — component, contract, dependency, ownership\n\n**ไม่มี endpoint ไหนเขียนข้อมูล** แหล่งความจริงคือ `ecosystem.yaml` การเปลี่ยนแปลงทำผ่าน import เท่านั้น (`/ask` เป็น POST เพราะต้องส่งคำถามใน body ไม่ใช่เพราะเขียนข้อมูล)",
     "version": "0.1.0"
   },
   "paths": {
@@ -714,10 +714,186 @@
           }
         }
       }
+    },
+    "/ask": {
+      "post": {
+        "tags": [
+          "advisor"
+        ],
+        "summary": "ถามจากมุมของทีม — ไม่เขียนข้อมูลใด ๆ",
+        "operationId": "ask_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Ask Ask Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contracts/{contract_name}/v{version}/coordination": {
+      "get": {
+        "tags": [
+          "advisor"
+        ],
+        "summary": "เปลี่ยน contract นี้ — ความเสี่ยงและลำดับการประสานงาน",
+        "operationId": "coordination_contracts__contract_name__v_version__coordination_get",
+        "parameters": [
+          {
+            "name": "contract_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contract Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "claude | chatgpt | offline",
+              "title": "Provider"
+            },
+            "description": "claude | chatgpt | offline"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Coordination Contracts  Contract Name  V Version  Coordination Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/advisor/provider": {
+      "get": {
+        "tags": [
+          "advisor"
+        ],
+        "summary": "ตอนนี้ใช้ provider ตัวไหนอยู่",
+        "operationId": "current_provider_advisor_provider_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Current Provider Advisor Provider Get"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AskRequest": {
+        "properties": {
+          "team": {
+            "type": "string",
+            "title": "Team",
+            "description": "id ของทีมที่ถาม เช่น delivery-team"
+          },
+          "question": {
+            "type": "string",
+            "minLength": 3,
+            "title": "Question",
+            "description": "คำถามภาษาธรรมชาติ"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "claude | chatgpt | offline — ไม่ใส่ = ตามค่า config"
+          },
+          "effort": {
+            "type": "string",
+            "pattern": "^(low|medium|high|xhigh|max)$",
+            "title": "Effort",
+            "default": "high"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team",
+          "question"
+        ],
+        "title": "AskRequest"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {

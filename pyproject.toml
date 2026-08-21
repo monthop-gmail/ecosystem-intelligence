@@ -9,6 +9,8 @@ dependencies = [
     "psycopg[binary]>=3.1",
     "fastapi>=0.110",
     "uvicorn>=0.27",
+    "anthropic>=1.0",
+    "openai>=2.0",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +21,7 @@ ecosystem-validate = "ecosystem_graph.validate:main"
 ecosystem-import = "ecosystem_graph.importer:main"
 ecosystem-migrate = "ecosystem_graph.migrate:main"
 ecosystem-registry = "ecosystem_graph.registry:main"
+ecosystem-ask = "ecosystem_graph.cli_ask:main"
 
 [build-system]
 requires = ["setuptools>=68"]

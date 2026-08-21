@@ -1,0 +1,52 @@
+# ชุดคำถามทดสอบ + คำตอบที่คาดหวัง (#11)
+#
+# ใช้กันของพังตอนแก้ prompt — และเทียบ provider กันได้ตรง ๆ
+# เกณฑ์ที่ตรวจเป็น "ข้อเท็จจริงที่ต้องมี" ไม่ใช่การเทียบข้อความแบบคำต่อคำ
+# เพราะภาษาที่ LLM เขียนต่างกันได้ แต่ข้อเท็จจริงต้องตรงกันเสมอ
+#
+#   must_reference   id ที่คำตอบต้องอ้างถึง
+#   must_not_mention id ที่คำตอบห้ามอ้าง (ตัวที่ไม่เกี่ยวข้อง หรือไม่มีอยู่จริง)
+#   expect_answerable ข้อมูลพอตอบไหม
+
+- id: knowledge-next
+  team: knowledge-team
+  question: ทีมเราควรทำอะไรต่อ?
+  must_reference: [enterprise-knowledge]
+  must_not_mention: [devfactory-core, care-agent-platform]
+  expect_answerable: true
+  note: >-
+    enterprise-knowledge ยังไม่มี platform-contract.yaml — งานที่ชัดที่สุดคือทำให้ conform
+    ไม่ควรไปแตะ component ของทีมอื่น
+
+- id: delivery-next
+  team: delivery-team
+  question: ทีมเราควรทำอะไรต่อ?
+  must_reference: [devfactory-core]
+  must_not_mention: [enterprise-knowledge]
+  expect_answerable: true
+  note: devfactory-core conform ผ่านแล้ว งานที่เหลือควรมาจาก dependency ไม่ใช่จาก conformance
+
+- id: platform-next
+  team: platform-team
+  question: ทีมเราควรทำอะไรต่อ?
+  must_reference: [agent-platform]
+  must_not_mention: []
+  expect_answerable: true
+  note: platform-team ถือ component ที่วางแผนไว้หลายตัวที่ยังไม่มี repo
+
+- id: care-next
+  team: care-team
+  question: ทีมเราควรทำอะไรต่อ?
+  must_reference: [care-agent-platform]
+  must_not_mention: []
+  expect_answerable: true
+
+- id: unanswerable-budget
+  team: delivery-team
+  question: ทีมเรามีงบประมาณเท่าไหร่ และจ้างเพิ่มได้กี่คน?
+  must_reference: []
+  must_not_mention: []
+  expect_answerable: false
+  note: >-
+    ecosystem graph ไม่มีข้อมูลงบประมาณหรือ headcount เลย
+    คำตอบที่ถูกคือบอกว่าตอบไม่ได้ ไม่ใช่เดาตัวเลขมาให้

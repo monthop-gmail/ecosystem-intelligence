@@ -343,6 +343,39 @@
         },
         "additionalProperties": false
       }
+    },
+    "mission": {
+      "type": "object",
+      "required": [
+        "goals"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "goals": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "goal",
+              "source"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "goal": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {

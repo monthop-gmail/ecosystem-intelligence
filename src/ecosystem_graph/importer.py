@@ -17,7 +17,7 @@ from .validate import ValidationError, load
 
 # ลำดับการลบ — ลูกก่อนแม่ (FK) · ลำดับการเขียนคือกลับด้าน
 TABLES = [
-    "conformance", "component_deps", "component_contracts", "component_planes",
+    "ecosystem_goals", "conformance", "component_deps", "component_contracts", "component_planes",
     "plane_contracts", "components", "contracts", "planes", "repositories",
     "teams", "sources", "architecture_rules", "ecosystem_meta",
 ]
@@ -74,6 +74,10 @@ def _write(conn, doc: dict) -> None:
             ex("INSERT INTO ecosystem_meta (key, value) VALUES (%s, %s)", (key, str(meta[key])))
     ex("INSERT INTO ecosystem_meta (key, value) VALUES (%s, %s)",
        ("apiVersion", doc["apiVersion"]))
+
+    for g in doc.get("mission", {}).get("goals", []):
+        ex("INSERT INTO ecosystem_goals (id, goal, source) VALUES (%s, %s, %s)",
+           (g["id"], g["goal"], g["source"]))
 
     for rule in doc.get("architecture_rules", []):
         ex("INSERT INTO architecture_rules (id, rule) VALUES (%s, %s)", (rule["id"], rule["rule"]))

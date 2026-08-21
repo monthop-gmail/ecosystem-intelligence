@@ -41,6 +41,8 @@ jobs:
           --health-interval 2s --health-timeout 3s --health-retries 30
     env:
       ECOSYSTEM_DSN: postgresql://ecosystem:ecosystem@localhost:55434/ecosystem
+      # บังคับ offline — CI ต้องไม่ยิง API จริงไม่ว่าจะเผลอตั้งค่าอะไรไว้
+      ECOSYSTEM_LLM_PROVIDER: offline
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

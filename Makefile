@@ -1,7 +1,7 @@
 PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
 .PHONY: help install validate validate-github up down schema import import-dry \
-        registry api openapi test test-all fmt
+        registry api openapi ask provider test test-all fmt
 
 help:
 	@echo "  make install          ติดตั้ง dependency ลง .venv"
@@ -17,6 +17,11 @@ help:
 	@echo "  make registry         ทะเบียน repository + เทียบกับ GitHub จริง"
 	@echo "  make api              รัน Ecosystem Graph API ที่ http://localhost:8000/docs"
 	@echo "  make openapi          เขียน docs/openapi.json ใหม่"
+	@echo ""
+	@echo ""
+	@echo "  M2 — Team Advisor"
+	@echo "  make ask TEAM=delivery-team Q=\"ทีมเราควรทำอะไรต่อ?\"    ถาม advisor จาก CLI"
+	@echo "  make provider         ดูว่าตอนนี้ใช้ LLM provider ตัวไหน"
 	@echo ""
 	@echo "  make test             unit test — ไม่ต้องมี DB"
 	@echo "  make test-all         test ทั้งหมด — ต้องมี DB"
@@ -56,6 +61,12 @@ api:
 
 openapi:
 	@$(PY) tools/export_openapi.py
+
+ask:
+	@$(PY) -m ecosystem_graph.cli_ask --team "$(TEAM)" --question "$(Q)"
+
+provider:
+	@$(PY) -c "from ecosystem_graph.llm import get_provider; p=get_provider(); print(f'provider={p.name} model={p.model}')"
 
 test:
 	@$(PY) -m pytest -q

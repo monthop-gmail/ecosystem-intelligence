@@ -16,6 +16,10 @@ def meta(conn) -> dict[str, str]:
     return {r["key"]: r["value"] for r in fetch_all(conn, "SELECT key, value FROM ecosystem_meta")}
 
 
+def goals(conn) -> list[dict]:
+    return fetch_all(conn, "SELECT id, goal, source FROM ecosystem_goals ORDER BY id")
+
+
 def architecture_rules(conn) -> list[dict]:
     return fetch_all(conn, "SELECT id, rule FROM architecture_rules ORDER BY id")
 

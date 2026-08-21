@@ -68,7 +68,7 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | --- | --- | --- |
 | **M0** ✅ | Ecosystem Foundation | นิยาม entity / relationship / ownership → `ecosystem.yaml` |
 | **M1** ✅ | Ecosystem Graph | PostgreSQL, Ecosystem Graph API, import ecosystem definition, repository registry |
-| **M2** | Team Advisor | Team context, Ask API, LLM reasoning, recommended work ← **MVP อยู่ตรงนี้** |
+| **M2** ✅ | Team Advisor | Team context, Ask API, LLM reasoning, recommended work ← **MVP อยู่ตรงนี้** |
 | **M3** | GitHub Intelligence | Repository sync, issues, PRs, current work detection |
 | **M4** | Impact Analysis | Dependency graph, change analysis, cross-team impact |
 | **M5** | Architecture Guardian | Architecture / contract validation, PR & issue review |
@@ -89,7 +89,8 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | --- | --- |
 | **M0 — Ecosystem Foundation** | ✅ เสร็จ — Ecosystem Map v0.1 |
 | **M1 — Ecosystem Graph** | ✅ เสร็จ — PostgreSQL + import + read-only API + registry |
-| **M2 — Team Advisor** | ⏭️ ถัดไป — MVP และ DoD อยู่ตรงนี้ |
+| **M2 — Team Advisor** | ✅ เสร็จ — **MVP** · DoD scenario ผ่าน |
+| **M3 — GitHub Intelligence** | ⏭️ ถัดไป |
 
 ครอบคลุมของจริง **15 contracts · 11 planes · 14 components · 14 repositories · 7 teams**
 
@@ -106,10 +107,32 @@ make api               # http://localhost:8000/docs
 ```
 
 ```bash
+make ask TEAM=delivery-team Q="ทีมเราควรทำอะไรต่อ?"   # ถาม advisor
+make provider    # ดูว่าตอนนี้ใช้ LLM ตัวไหน
 make test        # unit test — ไม่ต้องมี DB (ที่ต้องใช้ DB จะข้ามเอง)
 make test-all    # ทั้งหมด
 make registry    # ทะเบียน repository + เทียบกับ GitHub จริง
 ```
+
+## ถาม advisor
+
+```bash
+curl localhost:8000/ask -H 'content-type: application/json' \
+  -d '{"team":"knowledge-team","question":"ทีมเราควรทำอะไรต่อ?"}'
+```
+```text
+[1] ทำให้ enterprise-knowledge conform ตาม ADR-0006
+    enterprise-knowledge ยังไม่มี manifest — platform นับเป็น unknown
+    ซึ่งมีผลตอนตัดสินใจปิด contract version
+    อ้างอิง: enterprise-knowledge, conformance-provable
+```
+
+LLM รองรับ **Claude** และ **ChatGPT** สลับได้ด้วย config ตัวเดียว
+default เป็น `offline` (rule engine ในเครื่อง) เพื่อให้รันและเทสต์ได้โดยไม่ต้องมี API key
+— รายละเอียดที่ [`docs/llm.md`](docs/llm.md)
+
+ทุกคำตอบผ่าน **grounding check** — id ที่ model อ้างถึงต้องมีอยู่ใน ecosystem จริง
+ถ้าแต่งขึ้นมา `grounding.ok` เป็น false พร้อมบอกว่าแต่งอะไร
 
 ## ตัวอย่างที่ตอบได้แล้ววันนี้
 
@@ -139,6 +162,8 @@ curl localhost:8000/graph/cycles                         # มี circular depen
 | [`schema/ecosystem.schema.json`](schema/ecosystem.schema.json) | JSON Schema ของไฟล์ข้างบน |
 | [`migrations/`](migrations/) | schema ของ graph — ไม่แก้ด้วยมือ |
 | [`src/ecosystem_graph/`](src/ecosystem_graph/) | validate · migrate · import · queries · api · registry |
+| [`docs/llm.md`](docs/llm.md) | ชั้น LLM — provider, prompt caching, grounding |
+| [`evaluation/questions.yaml`](evaluation/questions.yaml) | ชุดคำถามทดสอบ + คำตอบที่คาดหวัง |
 | [`docs/openapi.json`](docs/openapi.json) | OpenAPI spec — CI ตรวจว่าตรงกับโค้ดเสมอ |
 
 > ⚠️ **repo นี้ไม่ใช่เจ้าของ contract** — schema เป็นของ [`agent-platform`](https://github.com/monthop-gmail/agent-platform/tree/main/contracts)

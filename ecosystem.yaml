@@ -34,6 +34,29 @@ sources:
     url: https://github.com/monthop-gmail/agent-platform/blob/main/architecture/consumers.md
     note: Markdown ที่คนดูแลด้วยมือ — ไฟล์นี้คือรูปแบบที่ machine อ่านได้ของข้อมูลชุดเดียวกัน
 
+# เป้าหมายระดับ ecosystem — ใช้ตอบคำถาม "ทำไมต้องทำสิ่งนี้ก่อน"
+#
+# M0 เลื่อนส่วนนี้ไว้เพราะยังไม่รู้ว่า advisor ต้องใช้รูปแบบไหน — ตอนนี้ M2 รู้แล้ว
+# ทุกข้อมี source ที่ตรวจย้อนได้ ไม่ได้แต่งขึ้นมา แต่การ "ยกระดับ" หลักการเหล่านี้
+# เป็นเป้าหมายของ ecosystem เป็นการตีความ — ต้องให้เจ้าของ ecosystem ยืนยัน
+mission:
+  goals:
+    - id: one-ecosystem-view
+      goal: ทุกทีมถาม AI จากมุมของตัวเองได้ โดย AI ใช้ภาพ ecosystem เดียวกันในการตอบ
+      source: ref/chatgpt-ecosystem-overview.md
+    - id: contract-single-source
+      goal: contract เป็นแหล่งความจริงเดียวของ interface ระหว่างทีม เปลี่ยนได้ผ่าน ADR เท่านั้น
+      source: https://github.com/monthop-gmail/agent-platform/tree/main/contracts
+    - id: no-duplicate-abstraction
+      goal: ไม่สร้าง abstraction ซ้ำกับที่ ecosystem มีอยู่แล้ว
+      source: https://github.com/monthop-gmail/agent-platform/blob/main/planes/README.md
+    - id: conformance-provable
+      goal: การใช้ contract ต้องพิสูจน์ได้ด้วย CI ไม่ใช่แค่ประกาศว่าใช้
+      source: https://github.com/monthop-gmail/agent-platform/blob/main/decisions/0006-contract-versioning.md
+    - id: ownership-unambiguous
+      goal: ทุก component มีเจ้าของหนึ่งทีมที่ชัดเจน ไม่มี orphan
+      source: docs/entities.md
+
 # กฎที่ทุก plane ต้องเคารพ — input โดยตรงของ M5 Architecture Guardian
 # ที่มา: agent-platform/planes/README.md (devfactory-core RFC-0004 · ADR-0003 · ADR-0005)
 architecture_rules:
