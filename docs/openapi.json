@@ -851,6 +851,178 @@
           }
         }
       }
+    },
+    "/work/current": {
+      "get": {
+        "tags": [
+          "github"
+        ],
+        "summary": "ตอนนี้ใครทำอะไรอยู่ — แยก in-progress ออกจาก declared",
+        "operationId": "work_current_work_current_get",
+        "parameters": [
+          {
+            "name": "team",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "กรองเฉพาะทีมนี้",
+              "title": "Team"
+            },
+            "description": "กรองเฉพาะทีมนี้"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(in-progress|declared)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Work Current Work Current Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/work/duplicates": {
+      "get": {
+        "tags": [
+          "github"
+        ],
+        "summary": "งานที่กำลังทำอยู่จริงของคนละทีม แต่แตะของชิ้นเดียวกัน",
+        "operationId": "work_duplicates_work_duplicates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Work Duplicates Work Duplicates Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/repositories/activity": {
+      "get": {
+        "tags": [
+          "github"
+        ],
+        "summary": "สถานะ sync และความเคลื่อนไหวราย repo",
+        "operationId": "repository_activity_repositories_activity_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Repository Activity Repositories Activity Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/contracts/touching-prs": {
+      "get": {
+        "tags": [
+          "github"
+        ],
+        "summary": "PR ที่แตะ contract / ADR / RFC — input ของ Architecture Guardian",
+        "operationId": "touching_prs_contracts_touching_prs_get",
+        "parameters": [
+          {
+            "name": "contract",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "เช่น execution/v1",
+              "title": "Contract"
+            },
+            "description": "เช่น execution/v1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Touching Prs Contracts Touching Prs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

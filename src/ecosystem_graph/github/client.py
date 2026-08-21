@@ -1,0 +1,85 @@
+"""ห่อ gh CLI — ใช้ auth เดิมของเครื่อง ไม่ต้องจัดการ token เอง
+
+ทำไมไม่ใช้ REST library: registry ของ M1 ใช้ gh อยู่แล้ว และ gh จัดการ auth,
+pagination, retry ให้ครบ การเพิ่ม dependency ใหม่เพื่อทำสิ่งเดียวกันไม่คุ้ม
+"""
+from __future__ import annotations
+
+import json
+import subprocess
+from typing import Any
+
+
+class GitHubError(RuntimeError):
+    """เรียก gh ไม่สำเร็จ — แยกจาก error ของ logic ฝั่งเรา"""
+
+
+class GitHubClient:
+    def __init__(self, owner: str = "monthop-gmail") -> None:
+        self.owner = owner
+        # นับเอง — rate_limit ของ GitHub ไม่ขยับทันทีและบางบัญชีใช้คนละ bucket
+        # ตัวเลขที่รายงานต้องเป็นของจริง ไม่ใช่ผลลบของค่าที่อาจไม่อัปเดต
+        self.calls = 0
+
+    def _run(self, args: list[str], *, timeout: int = 120) -> str:
+        try:
+            proc = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=timeout)
+        except FileNotFoundError as e:
+            raise GitHubError("ไม่มี gh CLI ในเครื่อง") from e
+        except subprocess.TimeoutExpired as e:
+            raise GitHubError(f"gh {' '.join(args[:3])} หมดเวลา") from e
+        if proc.returncode != 0:
+            raise GitHubError((proc.stderr or proc.stdout).strip().splitlines()[-1][:300])
+        return proc.stdout
+
+    def api(self, path: str, *, paginate: bool = False, timeout: int = 120) -> Any:
+        self.calls += 1
+        args = ["api", path]
+        if paginate:
+            args += ["--paginate", "--slurp"]
+        out = self._run(args, timeout=timeout)
+        if not out.strip():
+            return None
+        data = json.loads(out)
+        # --slurp ห่อผลแต่ละหน้าเป็น list ซ้อน — แบนให้เหลือชั้นเดียว
+        if paginate and isinstance(data, list) and data and isinstance(data[0], list):
+            return [item for page in data for item in page]
+        return data
+
+    def rate_limit(self) -> dict[str, Any]:
+        data = self.api("rate_limit")
+        core = data["resources"]["core"]
+        return {"limit": core["limit"], "remaining": core["remaining"], "reset": core["reset"]}
+
+    def available(self) -> bool:
+        try:
+            self._run(["auth", "status"], timeout=30)
+            return True
+        except GitHubError:
+            return False
+
+    # ── endpoints ที่ sync ใช้ ──────────────────────────────────────────
+    def repo(self, name: str) -> dict[str, Any]:
+        return self.api(f"repos/{self.owner}/{name}")
+
+    def latest_commit(self, name: str, branch: str) -> dict[str, Any] | None:
+        try:
+            data = self.api(f"repos/{self.owner}/{name}/commits/{branch}")
+        except GitHubError:
+            return None
+        return data
+
+    def issues(self, name: str, since: str | None = None) -> list[dict[str, Any]]:
+        path = f"repos/{self.owner}/{name}/issues?state=all&per_page=100"
+        if since:
+            path += f"&since={since}"
+        return self.api(path, paginate=True) or []
+
+    def pulls(self, name: str) -> list[dict[str, Any]]:
+        path = (f"repos/{self.owner}/{name}/pulls"
+                f"?state=all&per_page=100&sort=updated&direction=desc")
+        return self.api(path, paginate=True) or []
+
+    def pull_files(self, name: str, number: int) -> list[dict[str, Any]]:
+        return self.api(f"repos/{self.owner}/{name}/pulls/{number}/files?per_page=100",
+                        paginate=True) or []

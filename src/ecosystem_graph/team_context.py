@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from . import queries as q
+from .github import work as gh_work
 
 
 def ecosystem_truth(conn) -> dict[str, Any]:
@@ -99,6 +100,25 @@ def team_context(conn, team_id: str) -> dict[str, Any] | None:
         if c["exposed_by"] in comp_ids
     ]
 
+    # งานจริงจาก GitHub (M3) — ว่างได้ ถ้ายังไม่เคย sync
+    # advisor ต้องทำงานได้แม้ไม่มีข้อมูลส่วนนี้ จึงไม่ทำให้ context พังเมื่อว่าง
+    def _trim(items: list[dict], limit: int = 8) -> list[dict]:
+        return [{"kind": w["kind"], "ref": f"{w['repository']}#{w['number']}",
+                 "title": w["title"], "state": w["state"], "confidence": w["confidence"],
+                 "updated_days_ago": w["updated_days_ago"], "about": w["about"]}
+                for w in items[:limit]]
+
+    try:
+        all_work = gh_work.current_work(conn)
+    except Exception:  # noqa: BLE001 — ยังไม่เคย migrate ตาราง GitHub ก็ยังตอบได้
+        all_work = []
+
+    own_work = [w for w in all_work if w["team"] == team_id]
+    work_by_team: dict[str, list[dict]] = {}
+    for w in all_work:
+        if w["team"] and w["team"] != team_id:
+            work_by_team.setdefault(w["team"], []).append(w)
+
     return {
         "team": {
             "id": team["id"],
@@ -118,8 +138,16 @@ def team_context(conn, team_id: str) -> dict[str, Any] | None:
         ],
         "semantics_owned": semantics_owned,
         "exposed_contracts": exposed,
+        "current_work": _trim(own_work),
         "other_teams_work": [
-            {"team": t["id"], "components": [c["id"] for c in q.list_components(conn, team=t["id"])]}
+            {
+                "team": t["id"],
+                "components": [c["id"] for c in q.list_components(conn, team=t["id"])],
+                "in_progress": _trim([w for w in work_by_team.get(t["id"], [])
+                                      if w["state"] == "in-progress"], 5),
+                "declared": _trim([w for w in work_by_team.get(t["id"], [])
+                                   if w["state"] == "declared"], 5),
+            }
             for t in q.list_teams(conn) if t["id"] != team_id
         ],
     }
@@ -148,6 +176,13 @@ def known_ids(truth: dict, ctx: dict) -> set[str]:
     for entry in ctx["other_teams_work"]:
         ids.add(entry["team"])
         ids.update(entry["components"])
+        for w in entry["in_progress"] + entry["declared"]:
+            ids.add(w["ref"])
+            ids.update(w["about"])
+    # อ้างถึง issue/PR ที่มีอยู่จริงได้ — มันอยู่ใน context จึงถือว่า grounded
+    for w in ctx["current_work"]:
+        ids.add(w["ref"])
+        ids.update(w["about"])
     for p in truth["planes"]:
         ids.update(p["implemented_by"] or [])
     return {i for i in ids if i}

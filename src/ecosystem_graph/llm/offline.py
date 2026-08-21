@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 
@@ -157,19 +158,56 @@ class OfflineProvider:
             })
 
         risks: list[str] = []
+
+        # ─── M3: เตือนงานซ้ำข้ามทีมจากสิ่งที่กำลังทำอยู่จริง ไม่ใช่จากที่ประกาศไว้ ───
+        my_entities = {e for st in steps for e in st["references"]}
         for other in ctx["other_teams_work"]:
-            if other["components"]:
-                continue
+            for w in other.get("in_progress", []):
+                overlap = my_entities & set(w["about"] or [])
+                if overlap:
+                    risks.append(
+                        f"{other['team']} กำลังทำ {w['ref']} ซึ่งแตะ {', '.join(sorted(overlap))} "
+                        f"อยู่แล้ว — คุยกันก่อนเริ่ม ไม่งั้นจะได้ของสองชิ้นที่ทำเรื่องเดียวกัน"
+                    )
         for dep in ctx["depends_on"]:
             risks.append(
                 f"อย่าสร้างของที่ {dep['component']} มีอยู่แล้ว — ทีมนี้ขึ้นกับมันผ่าน "
                 f"{', '.join(dep['via']) or 'dependency ตรง'}"
             )
 
+        # ─── M3: ผูกข้อเสนอเข้ากับงานที่เปิดค้างอยู่จริงบน GitHub ───────────
+        # ถ้ามี issue เรื่องนี้อยู่แล้ว การเสนอให้ "เริ่มทำ" เป็นคำแนะนำที่ผิด
+        # คำแนะนำที่ถูกคือชี้ไปที่ของที่มีอยู่ แล้วบอกว่ามันค้างมานานแค่ไหน
+        own_work = ctx.get("current_work", [])
+
+        def _score(step: dict[str, Any], w: dict[str, Any]) -> tuple[int, int]:
+            """จับคู่ข้อเสนอกับงานที่เปิดค้าง — entity ที่ตรงกันหนักกว่าคำที่ตรงกัน
+
+            ชี้ไป issue ผิดใบแย่กว่าไม่ชี้ จึงต้องมีสัญญาณมากกว่าแค่ "อยู่ repo เดียวกัน"
+            """
+            overlap = len(set(step["references"]) & set(w["about"] or []))
+            title = w["title"].lower()
+            words = {t for t in re.findall(r"[a-z][a-z0-9-]{3,}", step["title"].lower())}
+            keyword_hits = sum(1 for t in words if t in title)
+            return (overlap * 2 + keyword_hits, -(w["updated_days_ago"] or 9999))
+
+        for st in steps:
+            refs = set(st["references"])
+            linked = [w for w in own_work if refs & set(w["about"] or [])]
+            if linked:
+                w = max(linked, key=lambda x: _score(st, x))
+                st["existing_work"] = w["ref"]
+                st["references"] = list(st["references"]) + [w["ref"]]
+                age = w["updated_days_ago"]
+                st["why"] += (f" · มี {w['kind']} เปิดค้างอยู่แล้วที่ {w['ref']}"
+                              f"{f' (ขยับล่าสุด {age} วันก่อน)' if age is not None else ''}"
+                              f" — ควรทำต่อจากอันนั้น ไม่ใช่เปิดใหม่")
+
         for st in steps:
             goal = st.pop("goal", None)
             if goal:
                 st["references"] = list(st["references"]) + [goal]
+            st.pop("existing_work", None)
 
         return {
             "team": team["id"],

@@ -1,7 +1,7 @@
 PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
 .PHONY: help install validate validate-github up down schema import import-dry \
-        registry api openapi ask provider test test-all fmt
+        registry api openapi sync work ask provider test test-all fmt
 
 help:
 	@echo "  make install          ติดตั้ง dependency ลง .venv"
@@ -22,6 +22,11 @@ help:
 	@echo "  M2 — Team Advisor"
 	@echo "  make ask TEAM=delivery-team Q=\"ทีมเราควรทำอะไรต่อ?\"    ถาม advisor จาก CLI"
 	@echo "  make provider         ดูว่าตอนนี้ใช้ LLM provider ตัวไหน"
+	@echo ""
+	@echo ""
+	@echo "  M3 — GitHub Intelligence"
+	@echo "  make sync             ดึง issue/PR/commit จาก GitHub เข้า graph (incremental)"
+	@echo "  make work             ตอนนี้ใครทำอะไรอยู่ + งานซ้ำข้ามทีม"
 	@echo ""
 	@echo "  make test             unit test — ไม่ต้องมี DB"
 	@echo "  make test-all         test ทั้งหมด — ต้องมี DB"
@@ -61,6 +66,12 @@ api:
 
 openapi:
 	@$(PY) tools/export_openapi.py
+
+sync:
+	@$(PY) -m ecosystem_graph.github.sync
+
+work:
+	@$(PY) -m ecosystem_graph.github.work
 
 ask:
 	@$(PY) -m ecosystem_graph.cli_ask --team "$(TEAM)" --question "$(Q)"

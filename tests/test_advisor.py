@@ -48,7 +48,7 @@ def test_context_ไม่มีการตีความ(conn):
     assert "recommendation" not in ctx and "advice" not in ctx
     assert set(ctx) == {"team", "components", "repositories", "depends_on",
                         "depended_on_by", "semantics_owned", "exposed_contracts",
-                        "other_teams_work"}
+                        "current_work", "other_teams_work"}
 
 
 # ── #11 Grounding ──────────────────────────────────────────────────────

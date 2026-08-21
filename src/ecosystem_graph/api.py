@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from . import advisor
 from . import queries as q
+from .github import work as gh_work
 from .db import connect
 from .llm import LLMError, get_provider
 
@@ -200,3 +201,41 @@ def current_provider() -> dict:
         return {"provider": p.name, "model": p.model, "configured": True}
     except LLMError as e:
         return {"provider": None, "model": None, "configured": False, "reason": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# GitHub Intelligence (M3) — สิ่งที่เกิดขึ้นจริง ไม่ใช่สิ่งที่ประกาศไว้
+# ทุก endpoint คืนค่าว่างได้ ถ้ายังไม่เคย sync — ไม่ใช่ error
+# ─────────────────────────────────────────────────────────────────────────
+@app.get("/work/current", tags=["github"],
+         summary="ตอนนี้ใครทำอะไรอยู่ — แยก in-progress ออกจาก declared")
+def work_current(
+    conn=Depends(db),
+    team: str | None = Query(None, description="กรองเฉพาะทีมนี้"),
+    state: str | None = Query(None, pattern="^(in-progress|declared)$"),
+) -> dict:
+    items = gh_work.current_work(conn, team=team)
+    if state:
+        items = [w for w in items if w["state"] == state]
+    return {"count": len(items), "work": items}
+
+
+@app.get("/work/duplicates", tags=["github"],
+         summary="งานที่กำลังทำอยู่จริงของคนละทีม แต่แตะของชิ้นเดียวกัน")
+def work_duplicates(conn=Depends(db)) -> dict:
+    risks = gh_work.duplicate_risk(conn)
+    return {"count": len(risks), "risks": risks}
+
+
+@app.get("/repositories/activity", tags=["github"],
+         summary="สถานะ sync และความเคลื่อนไหวราย repo")
+def repository_activity(conn=Depends(db)) -> list[dict]:
+    return gh_work.repository_activity(conn)
+
+
+@app.get("/contracts/touching-prs", tags=["github"],
+         summary="PR ที่แตะ contract / ADR / RFC — input ของ Architecture Guardian")
+def touching_prs(conn=Depends(db),
+                 contract: str | None = Query(None, description="เช่น execution/v1")) -> dict:
+    rows = gh_work.contract_prs(conn, contract)
+    return {"count": len(rows), "pull_requests": rows}

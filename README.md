@@ -69,7 +69,7 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | **M0** ✅ | Ecosystem Foundation | นิยาม entity / relationship / ownership → `ecosystem.yaml` |
 | **M1** ✅ | Ecosystem Graph | PostgreSQL, Ecosystem Graph API, import ecosystem definition, repository registry |
 | **M2** ✅ | Team Advisor | Team context, Ask API, LLM reasoning, recommended work ← **MVP อยู่ตรงนี้** |
-| **M3** | GitHub Intelligence | Repository sync, issues, PRs, current work detection |
+| **M3** ✅ | GitHub Intelligence | Repository sync, issues, PRs, current work detection |
 | **M4** | Impact Analysis | Dependency graph, change analysis, cross-team impact |
 | **M5** | Architecture Guardian | Architecture / contract validation, PR & issue review |
 | **M6** | Delivery Integration | เชื่อม agent-platform, devfactory-core, delivery orchestrator |
@@ -90,7 +90,8 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | **M0 — Ecosystem Foundation** | ✅ เสร็จ — Ecosystem Map v0.1 |
 | **M1 — Ecosystem Graph** | ✅ เสร็จ — PostgreSQL + import + read-only API + registry |
 | **M2 — Team Advisor** | ✅ เสร็จ — **MVP** · DoD scenario ผ่าน |
-| **M3 — GitHub Intelligence** | ⏭️ ถัดไป |
+| **M3 — GitHub Intelligence** | ✅ เสร็จ — sync issue/PR + current work detection |
+| **M4 — Impact Analysis** | ⏭️ ถัดไป |
 
 ครอบคลุมของจริง **15 contracts · 11 planes · 14 components · 14 repositories · 7 teams**
 
@@ -107,6 +108,8 @@ make api               # http://localhost:8000/docs
 ```
 
 ```bash
+make sync        # ดึง issue/PR จาก GitHub เข้า graph (incremental)
+make work        # ตอนนี้ใครทำอะไรอยู่ + งานซ้ำข้ามทีม
 make ask TEAM=delivery-team Q="ทีมเราควรทำอะไรต่อ?"   # ถาม advisor
 make provider    # ดูว่าตอนนี้ใช้ LLM ตัวไหน
 make test        # unit test — ไม่ต้องมี DB (ที่ต้องใช้ DB จะข้ามเอง)
@@ -130,6 +133,9 @@ curl localhost:8000/ask -H 'content-type: application/json' \
 LLM รองรับ **Claude** และ **ChatGPT** สลับได้ด้วย config ตัวเดียว
 default เป็น `offline` (rule engine ในเครื่อง) เพื่อให้รันและเทสต์ได้โดยไม่ต้องมี API key
 — รายละเอียดที่ [`docs/llm.md`](docs/llm.md)
+
+หลัง `make sync` advisor จะรู้ด้วยว่ามี issue เรื่องนี้เปิดค้างอยู่แล้วหรือยัง
+และเตือนได้เมื่อทีมอื่น**กำลังทำ**เรื่องเดียวกันอยู่ — [`docs/github.md`](docs/github.md)
 
 ทุกคำตอบผ่าน **grounding check** — id ที่ model อ้างถึงต้องมีอยู่ใน ecosystem จริง
 ถ้าแต่งขึ้นมา `grounding.ok` เป็น false พร้อมบอกว่าแต่งอะไร
@@ -163,6 +169,7 @@ curl localhost:8000/graph/cycles                         # มี circular depen
 | [`migrations/`](migrations/) | schema ของ graph — ไม่แก้ด้วยมือ |
 | [`src/ecosystem_graph/`](src/ecosystem_graph/) | validate · migrate · import · queries · api · registry |
 | [`docs/llm.md`](docs/llm.md) | ชั้น LLM — provider, prompt caching, grounding |
+| [`docs/github.md`](docs/github.md) | GitHub sync, declared vs in-progress, งานซ้ำข้ามทีม |
 | [`evaluation/questions.yaml`](evaluation/questions.yaml) | ชุดคำถามทดสอบ + คำตอบที่คาดหวัง |
 | [`docs/openapi.json`](docs/openapi.json) | OpenAPI spec — CI ตรวจว่าตรงกับโค้ดเสมอ |
 
