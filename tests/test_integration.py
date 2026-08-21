@@ -347,3 +347,13 @@ def test_assert_outbound_จับ_event_ที่ไม่ควรส่งอ
     with pytest.raises(ValueError, match="external"):
         events.assert_outbound(internal)
     events.assert_outbound(events.advisory_events(sample_result))  # ต้องไม่โยน
+
+
+def test_sequence_เป็น_int_บวกเสมอ(sample_result):
+    """ปลายทางปฏิเสธที่ intake ด้วย MalformedSequence — อย่าส่งของที่รู้ว่าเขาจะปฏิเสธ
+
+    bool เป็น int ใน Python · True จะกลายเป็น 1 เงียบ ๆ ถ้าไม่กัน
+    """
+    for e in events.advisory_events(sample_result):
+        seq = e["sequence"]
+        assert isinstance(seq, int) and not isinstance(seq, bool) and seq >= 1

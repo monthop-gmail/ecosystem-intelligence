@@ -106,8 +106,17 @@ def guarantees(payloads: list[dict]) -> list[str]:
     # — field ที่มีค่าแต่ไม่พาข้อมูล หลอกผู้อ่านให้คิดว่าเรียงได้ (devfactory-core#32)
     by_subject: dict[str, list[int]] = {}
     for e in payloads:
-        if e.get("sequence") is not None:
-            by_subject.setdefault(e["subject_id"], []).append(e["sequence"])
+        seq = e.get("sequence")
+        if seq is None:
+            continue
+        # ปลายทางปฏิเสธ sequence ที่ไม่ใช่ int >= 1 ที่ intake (MalformedSequence)
+        # bool เป็น int ใน Python — ส่ง True ไปจะกลายเป็น 1 เงียบ ๆ ถ้าไม่กันตรงนี้
+        # อย่าส่งของที่รู้อยู่แล้วว่าเขาจะปฏิเสธ
+        if isinstance(seq, bool) or not isinstance(seq, int) or seq < 1:
+            problems.append(f"{e['event_id']}: sequence={seq!r} ไม่ใช่ตำแหน่ง "
+                            f"— event/v1 ต้องเป็น integer >= 1")
+            continue
+        by_subject.setdefault(e["subject_id"], []).append(seq)
     for subject, seqs in by_subject.items():
         if len(seqs) != len(set(seqs)):
             problems.append(f"subject {subject}: sequence ซ้ำกันเอง")

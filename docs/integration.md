@@ -119,6 +119,9 @@ conformance ที่ตรวจใหม่ · component ที่ยังเ
    | เคาะเมื่อ | `devfactory-core` `EventLog` มีที่เก็บถาวร |
    | backstop | `2026-10-31` — ถึงแล้วยังไม่มี store ให้ถือว่า artifact handoff คือท่อจริง |
 
+   **สถานะ 2026-08-22** — payload · `sequence` · `event_id` ปิดหมดแล้วทั้งสองฝั่ง
+   เหลือแค่ transport ที่รอ trigger
+
    > **backstop ที่เขียนไว้แล้วไม่มีใครอ่าน คือคำสัญญาที่ไม่มีผล**
    > guardian rule `blocking-past-backstop` อ่าน `platform-contract.yaml` ของเราเอง
    > แล้วเตือนเมื่อเลยกำหนด — เราตรวจ ecosystem ให้คนอื่นได้ ก็ต้องยอมให้ตรวจตัวเอง
@@ -126,3 +129,23 @@ conformance ที่ตรวจใหม่ · component ที่ยังเ
 
 ร่างต้นฉบับอยู่ที่ [`integration/drafts/`](../integration/drafts/) และผูกกลับเข้า
 `platform-contract.yaml` หัวข้อ `blocking:` เพื่อให้ตามรอยได้ว่าค้างอยู่ที่ไหน
+
+
+## สิ่งที่ consumer จริงเจอ แต่เทสต์ของเราเองมองไม่เห็น
+
+`devfactory-core` ทดสอบ `sample.jsonl` ผ่าน intake จริงสองรอบ และเจอของทั้งสองรอบ
+ทั้งที่ฝั่งเรามี 177 tests · conformance 8 guarantee · CI 3 job ผ่านหมด
+
+| รอบ | เขาเจอ | ทำไมเราไม่เจอ |
+| --- | --- | --- |
+| 1 | `sequence` นับผิด scope — ทุก subject มี event ใบเดียว ค่าเลยเป็น `1` ตลอด | conformance ของเราตรวจ `sequence` ที่ระดับ `correlation` ซึ่งเป็นคนละ scope กับที่สัญญานิยาม จึงผ่านทั้งที่ของผิด |
+| 2 | (จากคำถามของเขา) `event_id` ไม่เสถียรข้ามรอบ | เราไม่เคยเทสต์ว่า "รันสองครั้งแล้วได้ id เดิมไหม" เพราะไม่เคยมีใครอ่านซ้ำ |
+
+**เราตรวจว่า payload ตรง schema ไหม · เขาตรวจว่าเอาไปใช้จริงแล้วได้ผลตามที่สัญญาบอกไหม**
+คนละคำถาม และคำถามที่สองต้องมีผู้รับจริงถึงจะถามได้
+
+และรอบที่สองเขาก็เจอของฝั่งตัวเองด้วย — `Event` ของเขาไม่มี field `sequence` เลย
+`accept_external` จึงทิ้งเงียบ ๆ · เราแก้ให้ `sequence` มีความหมายแล้ว แต่ log ของเขา
+จะยังกู้ลำดับไม่ได้อยู่ดี ถ้าเขาไม่ไปเจอ ([devfactory-core#33](https://github.com/monthop-gmail/devfactory-core/pull/33))
+
+> นี่คือค่าของการมี consumer จริง ที่ไม่มีทางทดแทนด้วยเทสต์ที่เขียนเอง
