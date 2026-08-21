@@ -154,6 +154,11 @@ def classify_patch(path: str, patch: str | None, status: str) -> dict[str, Any]:
     if not patch:
         return {"path": path, "level": "unsure", "reasons": ["ไม่มี diff ให้ดู"]}
 
+    if _description_only(patch):
+        return {"path": path, "level": "non-breaking",
+                "reasons": ["แตะแต่คำอธิบายใน schema ไม่มีบรรทัดไหนเป็นโครงสร้าง "
+                            "— ไม่มี key ใหม่ ไม่มี type ไม่มี required ไม่มี enum"]}
+
     added = [ln[1:] for ln in patch.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
     removed = [ln[1:] for ln in patch.splitlines() if ln.startswith("-") and not ln.startswith("---")]
 
@@ -232,6 +237,32 @@ def _inline_required(patch: str, sign: str) -> set[str]:
         if m:
             items |= {t.strip().strip("'\"") for t in m.group(1).split(",") if t.strip()}
     return items
+
+
+# บรรทัดที่เป็น "โครงสร้าง" ของ schema — key ใด ๆ ที่ไม่ใช่ description
+# บรรทัดในบล็อก description เป็นข้อความอิสระ ไม่แมตช์รูปนี้
+STRUCTURAL_LINE = re.compile(r"^\s*[A-Za-z_$][\w$-]*:")
+
+
+def _description_only(patch: str) -> bool:
+    """diff ที่แตะแต่คำอธิบาย ไม่ใช่ของที่ validator เอาไปตรวจ
+
+    การเปลี่ยนคำอธิบายใน schema เกิดบ่อยมาก ถ้าตอบ "ไม่แน่ใจ" ทุกครั้ง
+    คนจะเลิกอ่านสัญญาณนี้ภายในสองสัปดาห์ — เจอกับ agent-platform#41
+    ที่เพิ่มคำอธิบายของ WorkspaceId อย่างเดียวแต่ถูกตีเป็นไม่แน่ใจ
+    """
+    touched = [ln[1:] for ln in patch.splitlines()
+               if ln[:1] in "+-" and not ln.startswith(("+++", "---"))]
+    meaningful = [ln for ln in touched if ln.strip()]
+    if not meaningful:
+        return False
+    for ln in meaningful:
+        m = STRUCTURAL_LINE.match(ln)
+        if m and not ln.strip().startswith("description:"):
+            return False
+        if re.match(r"^\s*-\s+\S", ln):   # item ในลิสต์ เช่น required หรือ enum
+            return False
+    return True
 
 
 def _required_items(patch: str, sign: str) -> list[str]:

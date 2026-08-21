@@ -357,3 +357,27 @@ def test_sequence_เป็น_int_บวกเสมอ(sample_result):
     for e in events.advisory_events(sample_result):
         seq = e["sequence"]
         assert isinstance(seq, int) and not isinstance(seq, bool) and seq >= 1
+
+
+def test_pin_ใน_ecosystem_yaml_ตรงกับ_pinned_yaml():
+    """สามที่ต้องตรงกันเสมอ — conformance/pinned.yaml · platform-contract.yaml · ecosystem.yaml
+
+    เคยแก้ pin ด้วย regex กว้างเกินไปแล้วไปทับ pinned_commit ของ devfactory-core
+    ซึ่งเป็นของทีมอื่น · เทสต์ชุดนี้จับได้ทันที
+    """
+    eco = yaml.safe_load((ROOT / "ecosystem.yaml").read_text(encoding="utf-8"))
+    pinned = yaml.safe_load((ROOT / "conformance" / "pinned.yaml").read_text(encoding="utf-8"))
+    manifest = yaml.safe_load((ROOT / "platform-contract.yaml").read_text(encoding="utf-8"))
+
+    ours = next(c for c in eco["components"] if c["id"] == "ecosystem-intelligence")
+    assert ours["conformance"]["pinned_commit"] == pinned["commit"] == \
+        manifest["pinned_contracts_commit"]
+
+
+def test_ไม่ไปแก้_pin_ของทีมอื่น():
+    """pin ของ component อื่นเป็นของทีมนั้น เราบันทึกตามที่เขาประกาศ ไม่ใช่ตั้งเอง"""
+    eco = yaml.safe_load((ROOT / "ecosystem.yaml").read_text(encoding="utf-8"))
+    theirs = next(c for c in eco["components"] if c["id"] == "devfactory-core")
+    assert theirs["conformance"]["pinned_commit"] == \
+        "3a01ab9d0a68594463382b0ec618dc07ccf6408c", \
+        "pin ของ devfactory-core ต้องเป็นค่าที่เขาประกาศใน manifest ของเขา"

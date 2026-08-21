@@ -211,3 +211,33 @@ def test_deterministic_กับ_baseline_ให้ลำดับเดีย�
     model_first = min(model["judgement"]["recommended_coordination"],
                       key=lambda s: s["order"])["with_team"]
     assert rule_first == model_first == "delivery-team"
+
+
+def test_แตะแต่คำอธิบายใน_schema_ไม่_breaking():
+    """agent-platform#41 เพิ่มคำอธิบายของ WorkspaceId อย่างเดียวแต่เคยถูกตีเป็นไม่แน่ใจ
+
+    การเปลี่ยนคำอธิบายเกิดบ่อยมาก ถ้าตอบไม่แน่ใจทุกครั้ง คนจะเลิกอ่านสัญญาณนี้
+    """
+    patch = """@@ -20,6 +20,12 @@ $defs:
+       `Project` เป็น label ของ workspace
++
++      🔒 **เป็นขอบเขตอนุญาต ไม่ใช่กำแพง** (ADR-0021)
++      — ต่างจาก `TenantId` ตรงที่มีคนอนุญาตให้ข้ามได้
++
++      · การข้ามที่สำเร็จต้องออก audit event เสมอ
+"""
+    r = impact.classify_patch("contracts/identity/v1/identity.schema.yaml", patch, "modified")
+    assert r["level"] == "non-breaking"
+    assert "คำอธิบาย" in r["reasons"][0]
+
+
+def test_คำอธิบายปนโครงสร้างยังไม่ปลอดภัย():
+    """ถ้ามีบรรทัดโครงสร้างปนมาด้วย ต้องไม่ปล่อยผ่านเป็น non-breaking"""
+    patch = """@@ -20,6 +20,8 @@
+       คำอธิบายเพิ่ม
++      อีกบรรทัด
++  new_field:
++    type: string
+"""
+    r = impact.classify_patch("contracts/x/v1/x.schema.yaml", patch, "modified")
+    assert r["level"] != "non-breaking" or "คำอธิบาย" not in r["reasons"][0]

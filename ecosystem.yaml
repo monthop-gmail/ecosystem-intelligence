@@ -348,7 +348,7 @@ components:
     conformance:
       status: passing
       manifest: platform-contract.yaml
-      pinned_commit: c92a4144419679c6264bc07bd59c320ad1ffa8ba
+      pinned_commit: 099e4b57214a64912c9e215e75e4fe001a64e770
       last_verified: 2026-08-22
       evidence: >-
         conformance/payload_check.py — ผลิต event จากการรัน advisor ทุกทีมและ guardian

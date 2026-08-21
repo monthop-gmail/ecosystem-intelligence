@@ -28,7 +28,7 @@ conformance:
   # ⚠️ ข้อ 3 จะบล็อกการ merge ได้จริงต่อเมื่อเปิด branch protection แล้วตั้ง check
   #    เป็น required — เป็น repo setting ไม่ใช่สิ่งที่ไฟล์นี้ยืนยันได้
 
-pinned_contracts_commit: c92a4144419679c6264bc07bd59c320ad1ffa8ba   # conformance/pinned.yaml
+pinned_contracts_commit: 099e4b57214a64912c9e215e75e4fe001a64e770   # conformance/pinned.yaml
 
 # vocabulary ที่ repo นี้เพิ่มเข้ามาเอง
 #

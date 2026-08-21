@@ -23,7 +23,20 @@ $defs:
     $ref: '#/$defs/Id'
     description: >-
       ขอบเขตงานภายใน tenant — agent, knowledge, tool, policy อยู่ใน workspace
-      `Project` และ `Department` เป็น label ของ workspace ไม่ใช่ชั้น id ใหม่ (ADR-0007)
+      `Project` และ `Department` เป็น label ของ workspace ไม่ใช่ชั้น id ใหม่ ([ADR-0007](../../../decisions/0007-multi-tenancy.md))
+
+      🔒 **เป็นขอบเขตอนุญาต ไม่ใช่กำแพง** ([ADR-0021](../../../decisions/0021-workspace-is-a-scope-not-a-boundary.md))
+      — ต่างจาก `TenantId` ตรงที่ **มีคนอนุญาตให้ข้ามได้** ไม่ใช่ตรงที่เข้มน้อยกว่า
+
+      · **ปฏิเสธโดยปริยาย** — ทุก query ถูก scope ด้วย workspace เสมอ ไม่ใช่ filter ที่เลือกใส่
+
+      · **ขยายได้ผ่าน [`policy/v1`](../../policy/v1/)** (และ [`consent/v1`](../../consent/v1/) ถ้าเป็นข้อมูลส่วนบุคคล) ไม่ใช่ผ่านการเขียนโค้ดข้ามเอง
+
+      · **การข้ามที่สำเร็จต้องออก audit event เสมอ** ว่าอนุญาตด้วยอะไร — ถ้าข้ามได้เงียบ ๆ
+      ก็ไม่ต่างจากไม่มี workspace เลย
+
+      · บังคับที่ **ชั้นตรวจสิทธิ์** ส่วน `tenant_id` บังคับที่ **ชั้นเก็บข้อมูล** (RLS/partition/index)
+      ซึ่งโค้ดที่เขียนผิดก็ยังข้ามไม่ได้
 
   ActorId:
     $ref: '#/$defs/Id'

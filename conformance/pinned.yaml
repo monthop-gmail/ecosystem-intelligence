@@ -4,7 +4,7 @@
 # ส่วนการตรวจว่า vendored copy ยังตรงกับต้นทางเป็นคนละเรื่อง — ทำโดย
 # guardian rule contract-schema-drift ซึ่งออกเน็ตและรันแยก
 repo: monthop-gmail/agent-platform
-commit: c92a4144419679c6264bc07bd59c320ad1ffa8ba
+commit: 099e4b57214a64912c9e215e75e4fe001a64e770
 fetched_at: 2026-08-22
 schemas:
   - contracts/event/v1/event.schema.yaml
