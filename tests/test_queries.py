@@ -18,8 +18,9 @@ def test_ขาขึ้น_devfactory_ขึ้นกับ_agent_platform(conn
 
 
 def test_ขาลง_ใครขึ้นกับ_agent_platform(conn):
+    """ecosystem-intelligence อยู่ในลิสต์ตั้งแต่ M6 — เราเป็น consumer ของ event/v1 จริง"""
     ids = {d["component"] for d in q.dependents_of(conn, "agent-platform")}
-    assert ids == {"devfactory-core", "care-agent-platform"}
+    assert ids == {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"}
 
 
 def test_expected_ไม่ถูกนับเป็น_dependency(conn):

@@ -51,7 +51,7 @@ def test_dependencies_และ_dependents(client):
     up = client.get("/components/devfactory-core/dependencies").json()
     assert [r["component"] for r in up["results"]] == ["agent-platform"]
     down = client.get("/components/agent-platform/dependents").json()
-    assert {r["component"] for r in down["results"]} == {"devfactory-core", "care-agent-platform"}
+    assert {r["component"] for r in down["results"]} == {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"}
 
 
 def test_impact_ของ_contract(client):

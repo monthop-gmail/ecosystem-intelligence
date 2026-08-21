@@ -72,7 +72,7 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | **M3** ✅ | GitHub Intelligence | Repository sync, issues, PRs, current work detection |
 | **M4** ✅ | Impact Analysis | Dependency graph, change analysis, cross-team impact |
 | **M5** ✅ | Architecture Guardian | Architecture / contract validation, PR & issue review |
-| **M6** | Delivery Integration | เชื่อม agent-platform, devfactory-core, delivery orchestrator |
+| **M6** ✅ | Delivery Integration | เชื่อม agent-platform, devfactory-core, delivery orchestrator |
 
 ## Definition of Done (MVP)
 
@@ -92,8 +92,8 @@ MVP **เป็น Advisor ก่อน ไม่ใช่ autonomous agent**
 | **M2 — Team Advisor** | ✅ เสร็จ — **MVP** · DoD scenario ผ่าน |
 | **M3 — GitHub Intelligence** | ✅ เสร็จ — sync issue/PR + current work detection |
 | **M4 — Impact Analysis** | ✅ เสร็จ — dependency graph + breaking detection + ร่าง issue |
-| **M5 — Architecture Guardian** | ✅ เสร็จ — 14 กฎในไฟล์ + รีวิว PR (default ปิด) |
-| **M6 — Delivery Integration** | ⏭️ ถัดไป |
+| **M5 — Architecture Guardian** | ✅ เสร็จ — 16 กฎในไฟล์ + รีวิว PR (default ปิด) |
+| **M6 — Delivery Integration** | ✅ เสร็จ — เป็น consumer ที่ conform + client + วงจรปิด |
 
 ครอบคลุมของจริง **15 contracts · 11 planes · 14 components · 14 repositories · 7 teams**
 
@@ -125,6 +125,8 @@ make impact PR=agent-platform#35        # วิเคราะห์ PR จา�
 make sync        # ดึง issue/PR จาก GitHub เข้า graph (incremental)
 make work        # ตอนนี้ใครทำอะไรอยู่ + งานซ้ำข้ามทีม
 make ask TEAM=delivery-team Q="ทีมเราควรทำอะไรต่อ?"   # ถาม advisor
+make conformance # event ที่ปล่อยออกไป conform กับ event/v1 ไหม
+make feedback    # เทียบ ecosystem.yaml กับของจริง แล้วเสนอส่วนต่าง
 make health      # รายงานสุขภาพ ecosystem (CI รันทุกวัน)
 make provider    # ดูว่าตอนนี้ใช้ LLM ตัวไหน
 make test        # unit test — ไม่ต้องมี DB (ที่ต้องใช้ DB จะข้ามเอง)
@@ -188,6 +190,8 @@ curl localhost:8000/graph/cycles                         # มี circular depen
 | [`docs/impact.md`](docs/impact.md) | dependency graph, breaking detection, ลำดับการประสาน |
 | [`docs/guardian.md`](docs/guardian.md) | กฎ 14 ข้อ, manifest drift, การรีวิว PR |
 | [`docs/deploy.md`](docs/deploy.md) | Dockerfile, compose profile, ทำไม migration ไม่รันเองตอนบูต |
+| [`docs/integration.md`](docs/integration.md) | เป็น consumer ของ event/v1, client สำหรับ repo อื่น, วงจรปิด |
+| [`platform-contract.yaml`](platform-contract.yaml) | consumer manifest ตาม ADR-0006 |
 | [`guardian.yaml`](guardian.yaml) | เปิด/ปิด Guardian รายrepo — **default ปิดทั้งหมด** |
 | [`evaluation/questions.yaml`](evaluation/questions.yaml) | ชุดคำถามทดสอบ + คำตอบที่คาดหวัง |
 | [`docs/openapi.json`](docs/openapi.json) | OpenAPI spec — CI ตรวจว่าตรงกับโค้ดเสมอ |

@@ -1,0 +1,86 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml
+title: Identity
+description: >-
+  ตัวตนและขอบเขต multi-tenant ของทุก request ใน platform
+  ตาม ADR-0007 (Tenant → Workspace → Resource) — ทุก contract ต้องอ้าง $defs ในไฟล์นี้
+  ห้ามนิยาม id เองซ้ำที่อื่น
+
+$defs:
+  Id:
+    type: string
+    pattern: '^[a-z0-9][a-z0-9_-]{0,62}$'
+    description: รูปแบบ id กลาง — lowercase, ขึ้นต้นด้วย alphanumeric, ยาวไม่เกิน 63
+
+  TenantId:
+    $ref: '#/$defs/Id'
+    description: >-
+      ขอบเขต isolation แข็ง — ห้ามข้ามเด็ดขาด (ADR-0007)
+      isolation ต้องลงลึกถึง DB / index / storage layer ไม่ใช่แค่ filter ระดับ query
+      `Organization` เป็นคำเรียกทางธุรกิจของ tenant ไม่ใช่ชั้นแยก
+
+  WorkspaceId:
+    $ref: '#/$defs/Id'
+    description: >-
+      ขอบเขตงานภายใน tenant — agent, knowledge, tool, policy อยู่ใน workspace
+      `Project` และ `Department` เป็น label ของ workspace ไม่ใช่ชั้น id ใหม่ (ADR-0007)
+
+  ActorId:
+    $ref: '#/$defs/Id'
+    description: ผู้เป็นต้นเหตุของ request — คน ระบบ หรือ agent ที่เรียกต่อ
+
+  AgentId:
+    $ref: '#/$defs/Id'
+    description: agent ที่ลงมือทำงานนี้
+
+  ExecutionId:
+    $ref: '#/$defs/Id'
+    description: หนึ่งครั้งของการรัน — ดู execution/v1
+
+  Principal:
+    type: object
+    description: ผู้กระทำ — ใช้ตอบคำถาม "ใคร" ในทุก audit record
+    required: [type, id]
+    properties:
+      type:
+        enum: [human, agent, service]
+      id:
+        $ref: '#/$defs/ActorId'
+      display_name:
+        type: string
+      on_behalf_of:
+        $ref: '#/$defs/Principal'
+        description: >-
+          สายการมอบอำนาจ เช่น agent ทำงานแทนคน
+          ต้องไม่ทำให้สิทธิ์กว้างขึ้นกว่า principal ต้นสาย
+
+  RequestContext:
+    type: object
+    description: >-
+      context ขั้นต่ำของทุก request ที่เข้า platform
+      `workspace_id` เป็น optional เฉพาะ event ระดับ tenant ตาม ADR-0007 Consequences
+    required: [tenant_id, principal]
+    properties:
+      tenant_id:
+        $ref: '#/$defs/TenantId'
+      workspace_id:
+        $ref: '#/$defs/WorkspaceId'
+      principal:
+        $ref: '#/$defs/Principal'
+      request_id:
+        $ref: '#/$defs/Id'
+      correlation_id:
+        $ref: '#/$defs/Id'
+        description: ใช้ผูก request/execution/event ที่เป็นงานเดียวกันข้าม service
+
+  ExecutionContext:
+    type: object
+    description: >-
+      context ของงานที่มี agent ลงมือจริง — เข้มกว่า RequestContext
+      ต้องมีครบทั้ง 4 id ตาม ADR-0007
+    allOf:
+      - $ref: '#/$defs/RequestContext'
+      - required: [workspace_id, agent_id]
+        properties:
+          agent_id:
+            $ref: '#/$defs/AgentId'

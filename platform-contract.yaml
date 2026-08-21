@@ -1,0 +1,67 @@
+# Consumer manifest — ประกาศว่า repo นี้ยึด contract อะไรของ agent-platform
+#
+# รูปแบบตาม ADR-0006:
+#   https://github.com/monthop-gmail/agent-platform/blob/main/decisions/0006-contract-versioning.md
+#
+# repo นี้เป็น **ผู้ผลิต event** ไม่ใช่ผู้บริโภค — ปล่อย ADVISORY_ISSUED และ
+# ECOSYSTEM_DRIFT_DETECTED ออกมาให้ระบบอื่นรับไปทำต่อ แต่ยังต้อง conform เท่ากัน
+# เพราะฝั่งที่ผลิต payload ผิดคือฝั่งที่ทำให้ audit log ของคนอื่นพัง
+
+platform_contract_version: "0.1"
+
+contracts:
+  - event/v1       # ปล่อย ADVISORY_ISSUED · ECOSYSTEM_DRIFT_DETECTED
+  - identity/v1    # tenant_id และรูปแบบ Id ของทุก event ที่ปล่อย
+
+conformance:
+  status: passing
+  last_verified: 2026-08-21
+
+  # ADR-0006 บังคับ consumer 3 ข้อ
+  #   1. manifest         ไฟล์นี้
+  #   2. conformance test conformance/payload_check.py — ผลิต payload จากการรัน
+  #                       advisor และ guardian กับ ecosystem จริง แล้ว validate
+  #                       กับ schema ที่ pin ไว้ · ไม่มี fixture ที่เขียนขึ้นเพื่อให้ผ่าน
+  #                       ตรวจ guarantee ที่ JSON Schema ตรวจไม่ได้อีก 8 ข้อ
+  #   3. release gate     job `conformance` ใน .github/workflows/validate.yml รันทุก PR
+  #
+  # ⚠️ ข้อ 3 จะบล็อกการ merge ได้จริงต่อเมื่อเปิด branch protection แล้วตั้ง check
+  #    เป็น required — เป็น repo setting ไม่ใช่สิ่งที่ไฟล์นี้ยืนยันได้
+
+pinned_contracts_commit: 6e97e0854f59426f62dfb873b91b6524da62e4b2   # conformance/pinned.yaml
+
+# vocabulary ที่ repo นี้เพิ่มเข้ามาเอง
+#
+# `event/v1` $defs.EventTypeName บังคับแค่ **รูปแบบชื่อ** (^[A-Z][A-Z0-9_]{2,63}$)
+# ไม่ได้บังคับตัวค่า — ADR-0006 Rule 2 ตั้งใจให้ vocabulary โตได้โดยไม่ต้องมี RFC
+# ที่ต้นทาง เราจึงประกาศสองค่านี้ได้เอง และบันทึกไว้ที่นี่ให้ platform เห็น
+#
+# ยืนยันด้วยการ validate กับ schema ที่ pin ไว้จริง ไม่ได้อนุมานจากคำอธิบาย
+vocabulary_added:
+  - name: ADVISORY_ISSUED
+    subject_type: record
+    record_type: ecosystem_advisory
+    meaning: ระบบเสนอสิ่งที่ทีมหนึ่งควรทำต่อ พร้อมเหตุผลและสิ่งที่ใช้อ้างอิง
+  - name: ECOSYSTEM_DRIFT_DETECTED
+    subject_type: record
+    record_type: ecosystem_drift
+    meaning: กฎ architecture หรือ contract ข้อหนึ่งถูกละเมิด พร้อมทางแก้
+
+# ช่องว่างที่ยังเหลือ — บันทึกไว้ให้เห็นโดยไม่ต้องมาถาม
+# (รูปแบบเดียวกับที่ devfactory-core และ care-agent-platform ทำ)
+blocking:
+  - id: not-in-consumer-registry
+    detail: >-
+      agent-platform/architecture/consumers.md ยังไม่มีแถวของ repo นี้
+      — เป็นการแก้ที่ repo ของเขา เราทำฝ่ายเดียวไม่ได้
+    severity: low
+    status: pending   # ต้องเปิด issue ที่ agent-platform
+
+  - id: no-consumer-of-our-events
+    detail: >-
+      event ที่ปล่อยออกมายังไม่มีใครรับไปทำต่อ — devfactory-core รับ event/v1
+      ได้ตามสัญญาอยู่แล้ว แต่การต่อท่อจริงต้องตกลงเรื่อง transport กันก่อน
+    severity: medium
+    status: pending
+
+registration: conforming   # registered | conforming

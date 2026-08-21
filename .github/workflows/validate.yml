@@ -63,3 +63,34 @@ jobs:
         run: |
           python tools/export_openapi.py
           git diff --exit-code docs/openapi.json
+
+  conformance:
+    name: conformance (event/v1)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ecosystem
+          POSTGRES_PASSWORD: ecosystem
+          POSTGRES_DB: ecosystem
+        ports: ["55434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ecosystem -d ecosystem"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      ECOSYSTEM_DSN: postgresql://ecosystem:ecosystem@localhost:55434/ecosystem
+      ECOSYSTEM_LLM_PROVIDER: offline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: เตรียม graph
+        run: |
+          python -m ecosystem_graph.migrate
+          python -m ecosystem_graph.importer
+      # ADR-0006 ข้อ 2 — validate payload จริงที่ระบบผลิต ไม่ใช่ fixture ที่เขียนให้ผ่าน
+      - name: event ที่ปล่อยออกไปต้อง conform กับ event/v1 ที่ pin ไว้
+        run: python conformance/payload_check.py

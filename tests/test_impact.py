@@ -110,7 +110,7 @@ def test_ไม่มี_diff_ตอบไม่แน่ใจ():
 def test_ต้นไม้ขาลงจาก_agent_platform(conn):
     tree = impact.dependency_tree(conn, "agent-platform", direction="down")
     kids = {c["node"] for c in tree["children"]}
-    assert kids == {"devfactory-core", "care-agent-platform"}
+    assert kids == {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"}
 
 
 def test_ต้นไม้ขาขึ้นจาก_devfactory(conn):
@@ -189,8 +189,8 @@ def test_contract_ที่ไม่มีคืน_None(conn):
 # ── component change ──────────────────────────────────────────────────
 def test_component_change_เดินตาม_contract_ที่_expose(conn):
     r = impact.component_change(conn, "agent-platform")
-    assert set(r["affected_components"]) == {"devfactory-core", "care-agent-platform"}
-    assert set(r["affected_teams"]) == {"delivery-team", "care-team"}
+    assert set(r["affected_components"]) == {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"}
+    assert set(r["affected_teams"]) == {"delivery-team", "care-team", "ecosystem-team"}
 
 
 def test_component_ที่ไม่มีใครขึ้นกับ(conn):

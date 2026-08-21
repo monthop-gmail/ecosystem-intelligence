@@ -1,0 +1,11 @@
+# commit ของ agent-platform ที่ schema ใน conformance/schemas/ ถูกคัดลอกมา
+#
+# ทำไม vendor แทนที่จะ fetch สด: conformance ต้องได้ผลเดิมทุกครั้งและรันได้แม้ออฟไลน์
+# ส่วนการตรวจว่า vendored copy ยังตรงกับต้นทางเป็นคนละเรื่อง — ทำโดย
+# guardian rule contract-schema-drift ซึ่งออกเน็ตและรันแยก
+repo: monthop-gmail/agent-platform
+commit: 6e97e0854f59426f62dfb873b91b6524da62e4b2
+fetched_at: 2026-08-21
+schemas:
+  - contracts/event/v1/event.schema.yaml
+  - contracts/identity/v1/identity.schema.yaml

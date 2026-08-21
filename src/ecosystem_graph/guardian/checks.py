@@ -29,6 +29,9 @@ ARTIFACT_CONTRACTS = {"artifact/v1"}
 
 CONFORMANCE_MAX_AGE_DAYS = 90
 
+# check ที่ต้องอ่านจาก repo อื่น — ข้ามได้ แต่ต้องข้ามอย่างมีเสียง
+REMOTE_CHECKS = {"manifest_drift", "semantics_version_drift", "pinned_contract_stale"}
+
 
 def load_rules() -> dict[str, dict[str, Any]]:
     data = yaml.safe_load(RULES_PATH.read_text(encoding="utf-8"))
@@ -214,7 +217,87 @@ def manifest_drift(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# Cross-repo (M6) — ต้องอ่านจาก repo อื่น จึงออกเน็ตทั้งคู่
+# ─────────────────────────────────────────────────────────────────────────
+def _fetch_yaml(gh: GitHubClient, repo: str, path: str, ref: str | None = None) -> dict:
+    import base64
+    url = f"repos/{gh.owner}/{repo}/contents/{path}" + (f"?ref={ref}" if ref else "")
+    blob = gh.api(url)
+    return yaml.safe_load(base64.b64decode(blob["content"]).decode("utf-8")) or {}
+
+
+def semantics_version_drift(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
+    """เทียบ semantics_version ที่ contract pin ไว้ กับต้นทางที่เป็นเจ้าของความหมาย
+
+    devfactory-core เขียนกฎ drift_check นี้ไว้เอง (pin semantics_version ไม่ใช่ commit SHA)
+    แต่ยังไม่มีใครตรวจข้ามrepo ให้ — เราตรวจจากมุมของ ecosystem ซึ่งเห็นทั้งสองฝั่ง
+    """
+    gh = gh or GitHubClient()
+    out: list[dict] = []
+    rows = fetch_all(conn, """
+        SELECT id, authority, semantics_owner FROM contracts
+         WHERE derived AND semantics_owner IS NOT NULL
+    """)
+    upstream: dict[str, str] = {}
+    for r in rows:
+        owner = r["semantics_owner"]
+        if owner not in upstream:
+            try:
+                doc = _fetch_yaml(gh, owner, "contract-semantics.yaml")
+                upstream[owner] = str(doc.get("semantics_version", ""))
+            except Exception as e:  # noqa: BLE001
+                out.append(_finding(rule, r["id"],
+                                    f"อ่าน contract-semantics.yaml ของ {owner} ไม่ได้: "
+                                    f"{str(e)[:100]}", skipped=True))
+                upstream[owner] = ""
+        want = upstream[owner]
+        if not want:
+            continue
+        name, _, version = r["id"].partition("/")
+        path = f"contracts/{name}/{version}/{name}.schema.yaml"
+        try:
+            schema = _fetch_yaml(gh, r["authority"], path)
+        except Exception as e:  # noqa: BLE001
+            out.append(_finding(rule, r["id"], f"อ่าน schema ไม่ได้: {str(e)[:100]}",
+                                skipped=True))
+            continue
+        got = str((schema.get("derived_from") or {}).get("semantics_version", ""))
+        if got != want:
+            out.append(_finding(rule, r["id"],
+                                f"{r['authority']} pin ไว้ {got or 'ไม่ระบุ'} "
+                                f"แต่ {owner} อยู่ที่ {want}",
+                                pinned=got, upstream=want))
+    return out
+
+
+def pinned_contract_stale(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
+    """schema ที่เรา vendor ไว้ ยังตรงกับ commit ที่ pin ไหม และต้นทางขยับไปแค่ไหน"""
+    from ..config import ROOT
+
+    gh = gh or GitHubClient()
+    pinned_path = ROOT / "conformance" / "pinned.yaml"
+    if not pinned_path.exists():
+        return []
+    pin = yaml.safe_load(pinned_path.read_text(encoding="utf-8"))
+    repo = pin["repo"].split("/")[-1]
+
+    try:
+        commits = gh.api(f"repos/{gh.owner}/{repo}/commits?path=contracts&per_page=1")
+        head = commits[0]["sha"] if commits else None
+    except Exception as e:  # noqa: BLE001
+        return [_finding(rule, repo, f"ตรวจ commit ล่าสุดไม่ได้: {str(e)[:100]}", skipped=True)]
+
+    if head and head != pin["commit"]:
+        return [_finding(rule, repo,
+                         f"pin ไว้ที่ {pin['commit'][:12]} แต่ contracts/ ขยับไปถึง "
+                         f"{head[:12]} แล้ว", pinned=pin["commit"], head=head)]
+    return []
+
+
+# ─────────────────────────────────────────────────────────────────────────
 CHECKS: dict[str, Callable] = {
+    "semantics_version_drift": semantics_version_drift,
+    "pinned_contract_stale": pinned_contract_stale,
     "orphan_components": orphan_components,
     "duplicate_plane_implementations": duplicate_plane_implementations,
     "execution_owns_governance": execution_owns_governance,
@@ -240,7 +323,7 @@ def run_all(conn, *, include_remote: bool = False,
         if not check_name:
             continue  # กฎที่ใช้เฉพาะตอน review PR ไม่มี check ระดับ ecosystem
         fn = CHECKS[check_name]
-        if check_name == "manifest_drift":
+        if check_name in REMOTE_CHECKS:
             if not include_remote:
                 skipped.append(rule_id)
                 continue

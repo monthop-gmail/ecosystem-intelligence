@@ -119,6 +119,27 @@ rules:
     fix: ย้ายไป expected_contracts จนกว่าจะมี platform-contract.yaml จริง
     source: docs/entities.md §2.1.1
 
+  - id: semantics-version-drift
+    severity: error
+    check: semantics_version_drift
+    title: semantics_version ที่ contract pin ไว้ ไม่ตรงกับต้นทาง
+    why: >-
+      contract ที่ derive มา ต้อง pin semantics_version ของ repo เจ้าของความหมาย
+      ถ้าต้นทางขยับแล้วปลายทางยังค้าง แปลว่าสองฝั่งเข้าใจความหมายไม่ตรงกัน
+      โดยที่ schema ยังผ่าน validation ทุกใบ — เป็น drift ชนิดที่มองไม่เห็น
+    fix: อัปเดต derived_from.semantics_version ให้ตรงกับ contract-semantics.yaml ของต้นทาง
+    source: devfactory-core contract-semantics.yaml drift_check
+
+  - id: pinned-contract-stale
+    severity: warn
+    check: pinned_contract_stale
+    title: schema ที่ vendor ไว้เก่ากว่าต้นทางแล้ว
+    why: >-
+      การ pin เป็นเรื่องตั้งใจ ไม่ใช่ความผิด — แต่ต้นทางที่ขยับไปไกลแล้วแปลว่า
+      ควรตรวจว่ามีอะไรที่ต้อง re-pin ไหม ไม่ใช่ปล่อยจนตามไม่ทัน
+    fix: ตรวจ diff ของ contract ตั้งแต่ commit ที่ pin แล้วตัดสินใจว่าจะ re-pin ไหม
+    source: ADR-0006
+
   # ── PR ───────────────────────────────────────────────────────────────
   - id: breaking-without-coordination
     severity: error

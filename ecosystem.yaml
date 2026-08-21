@@ -223,7 +223,7 @@ repositories:
   - { id: enterprise-knowledge,  url: "https://github.com/monthop-gmail/enterprise-knowledge",  visibility: public, default_branch: main,   exists: true,  manifest: null }
   - { id: ai-web-harness,        url: "https://github.com/monthop-gmail/ai-web-harness",        visibility: public, default_branch: main,   exists: true,  manifest: null }
   - { id: navi-ims,              url: "https://github.com/monthop-gmail/navi-ims",              visibility: unknown, default_branch: master, exists: true, manifest: null }
-  - { id: ecosystem-intelligence, url: "https://github.com/monthop-gmail/ecosystem-intelligence", visibility: public, default_branch: main, exists: true, manifest: null }
+  - { id: ecosystem-intelligence, url: "https://github.com/monthop-gmail/ecosystem-intelligence", visibility: public, default_branch: main, exists: true, manifest: platform-contract.yaml }
   - { id: agent-gateway,         url: null, visibility: null, default_branch: null, exists: false, manifest: null }
   - { id: agent-backend-os,      url: null, visibility: null, default_branch: null, exists: false, manifest: null }
   - { id: agent-fleet,           url: null, visibility: null, default_branch: null, exists: false, manifest: null }
@@ -285,7 +285,7 @@ components:
     conformance:
       status: passing
       manifest: platform-contract.yaml
-      last_verified: 2026-08-19
+      last_verified: 2026-08-21
       evidence: conformance/payload_check.py — 58 event/รอบ รันบน sqlite และ Postgres ทุก PR
 
   - id: enterprise-knowledge
@@ -336,8 +336,16 @@ components:
     repository: ecosystem-intelligence
     status: in-development
     exposes: []
-    consumes: []
-    conformance: { status: not-applicable }
+    consumes: [event/v1, identity/v1]
+    conformance:
+      status: passing
+      manifest: platform-contract.yaml
+      pinned_commit: 6e97e0854f59426f62dfb873b91b6524da62e4b2
+      last_verified: 2026-08-21
+      evidence: >-
+        conformance/payload_check.py — ผลิต event จากการรัน advisor ทุกทีมและ guardian
+        กับ ecosystem จริง แล้ว validate กับ event/v1 ที่ pin ไว้ พร้อมตรวจ guarantee
+        อีก 8 ข้อที่ JSON Schema ตรวจไม่ได้
 
   # ── component ที่วางแผนไว้แต่ยังไม่มี repo ────────────────────────────
   - id: agent-gateway

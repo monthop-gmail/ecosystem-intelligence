@@ -1,0 +1,226 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://schemas.agent-platform.internal/event/v1/event.schema.yaml
+title: Audit Event
+description: >-
+  บันทึกสิ่งที่เกิดขึ้นในระบบแบบ append-only
+
+  **semantics เป็นของ `devfactory-core`** — event vocabulary และ guarantees ในไฟล์นี้
+  แก้ที่นี่ไม่ได้ ต้องมี RFC ที่ repo นั้นก่อน (RFC-0005 Rule 2)
+  ส่วนชื่อ field, type, โครงสร้างและ versioning เป็นของ `agent-platform` (Rule 1)
+
+derived_from:
+  repo: monthop-gmail/devfactory-core
+  manifest: contract-semantics.yaml
+  semantics_version: "1.2"
+  rfcs:
+    - rfcs/0003-audit-event-log-schema.md
+    - rfcs/0008-external-event-intake.md
+    - rfcs/0012-terminal-closing-record.md
+    - rfcs/0009-vocabulary-extension.md
+  license: MIT
+  # ตรวจ drift โดยเทียบ semantics_version ไม่ใช่ SHA ของไฟล์ RFC
+
+$defs:
+  EventType:
+    description: >-
+      🔓 **ชุดเปิด** — 7 ค่านี้คือ *ขั้นต่ำที่ต้องมี* ไม่ใช่ชุดทั้งหมด
+      (devfactory-core RFC-0009 · `semantics_version: "1.1"`)
+
+      **เพิ่ม event type ใหม่ = additive** — `agent-platform` ทำได้เองผ่าน ADR ที่นี่
+      ไม่ต้องมี RFC ที่ต้นทาง เพราะ event type ใหม่คือสิ่งที่สังเกตเพิ่ม
+      ลดทอน guarantee ข้อใดไม่ได้
+
+      🔒 **ลบ · เปลี่ยนชื่อ · เปลี่ยนความหมาย ของ 7 ค่านี้ = semantic change**
+      ต้องมี RFC ที่ devfactory-core ก่อน
+
+      ต่างจาก `approval/v1` `$defs.Decision` ซึ่งยังเป็นชุดปิด — ที่นั่นการเพิ่มค่า
+      เปิดทางให้ execution เดินโดยไม่มี APPROVE ของคนได้ ที่นี่เพิ่มไม่ได้ทำแบบนั้น
+
+      ⚠️ **`$defs` นี้ไม่ใช่สิ่งที่ field `event_type` อ้าง** — field อ้าง `EventTypeName`
+      เพราะถ้าอ้างที่นี่ ค่าที่อยู่นอกลิสต์จะ validate ไม่ผ่าน ซึ่งขัดกับทั้ง
+      `platform_rules` ในไฟล์นี้และ ADR-0006 Rule 2
+      ที่นี่มีไว้ให้ consumer generate constant ของค่าที่ platform รับรองความหมาย
+    enum:
+      - JOB_CREATED
+      - STATE_TRANSITION
+      - GOVERNANCE_DECISION
+      - TASK_ASSIGNED
+      - EXECUTION_STARTED
+      - EXECUTION_FAILED
+      - JOB_COMPLETED
+      # consent — `consent/v1` consent_rules ข้อ 2 บังคับให้ออก event ทุกครั้ง
+      # ([ADR-0020](../../../decisions/0020-consent-event-vocabulary.md))
+      # ⚠️ ไม่มี CONSENT_USED โดยเจตนา — การใช้บันทึกด้วย field `consent` บน event
+      #    ที่เกิดการเข้าถึงจริง ไม่ใช่ด้วย event type แยก ไม่งั้นจะมีสองบันทึก
+      #    ของเหตุการณ์เดียวกัน และ query ด้วย event_type จะตกหล่นการใช้
+      #    ที่ถูกบันทึกบน event ของโดเมน ซึ่งเป็นส่วนใหญ่
+      - CONSENT_GRANTED
+      - CONSENT_REVOKED
+
+  EventTypeName:
+    description: >-
+      สิ่งที่ field `event_type` รับจริง — **ค่านอก `EventType` ใช้ได้**
+      เช่น `SIGHTING_RECORDED` จาก `navi-ims` หรือ `MEDICATION_TAKEN` จาก care domain
+
+      บังคับแค่ *รูปแบบชื่อ* ไม่ใช่ตัวค่า เพื่อให้ vocabulary โตได้ตาม
+      [ADR-0006 Rule 2](../../../decisions/0006-contract-versioning.md)
+      โดยที่ชื่อยังอ่านรู้ว่าเป็น event type ไม่ใช่ string อะไรก็ได้
+
+      consumer ที่เจอค่าที่ไม่รู้จักต้องเก็บ event ไว้แล้วข้ามการตีความ — ดู `platform_rules`
+    type: string
+    pattern: '^[A-Z][A-Z0-9_]{2,63}$'
+
+  SubjectType:
+    description: >-
+      สิ่งที่ event นี้พูดถึง — enum และชื่อ field เป็นของ agent-platform
+      ส่วนกฎที่ว่า "ทุก event ต้องตอบได้ว่าเกี่ยวกับอะไร" เป็นของ devfactory-core
+
+      `record` = บันทึกของโดเมนที่ระบบเก็บไว้และต้องตามรอยได้ แต่**ไม่ได้เกิดจาก job**
+      (ผู้ป่วย · ใบสั่งยาเวอร์ชันหนึ่ง · รายการสินค้า) · ชนิดที่แท้จริงอยู่ใน
+      `metadata.record_type` — platform ไม่รู้จักชนิดของโดเมนและไม่ควรรู้
+      แยกจาก `artifact` ซึ่งเป็นผลผลิตของ execution ([`artifact/v1`](../../artifact/v1/))
+
+      `consent` = ใบยินยอมตาม [`consent/v1`](../../consent/v1/) — เป็น contract ระดับ platform
+      เหมือน `approval` จึงมีค่าของตัวเอง ไม่รวมใน `record` ที่สงวนไว้ให้บันทึกของโดเมน
+      ([ADR-0020](../../../decisions/0020-consent-event-vocabulary.md))
+    enum: [job, execution, step, agent, tool_call, artifact, approval, consent, external, record]
+
+type: object
+required: [event_id, event_type, tenant_id, subject_type, subject_id, occurred_at, source]
+properties:
+  event_id:
+    $ref: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml#/$defs/Id
+  event_type:
+    $ref: '#/$defs/EventTypeName'
+
+  tenant_id:
+    $ref: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml#/$defs/TenantId
+    description: >-
+      🔒 invariant — event ที่ resolve tenant ไม่ได้ ให้ **reject ที่ intake ห้ามเดา tenant ให้**
+  workspace_id:
+    $ref: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml#/$defs/WorkspaceId
+    description: optional เฉพาะ event ระดับ tenant ตาม ADR-0007
+
+  # ⚠️ `subject` ที่นี่ = **หัวเรื่องของบันทึก** ไม่ใช่ผู้กระทำและไม่ใช่เจ้าของข้อมูล
+  #    ผู้กระทำอยู่ที่ `actor` · ดูตารางศัพท์ที่ lock ไว้ ([ADR-0017](../../../decisions/0017-the-word-subject.md))
+  #    🔒 ชื่อคู่นี้เป็น semantics ของ devfactory-core (RFC-0008) — เปลี่ยนที่นี่ไม่ได้
+  subject_type:
+    $ref: '#/$defs/SubjectType'
+  subject_id:
+    $ref: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml#/$defs/Id
+
+  job_id:
+    $ref: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml#/$defs/Id
+    description: >-
+      **optional ใน schema — ไม่ optional ในพฤติกรรม**
+      event ที่ `devfactory-core` ส่งออกโดยไม่มี `job_id` เป็น defect
+      การไม่มีค่าใช้ได้เฉพาะ event ที่ไม่ได้เกิดจาก job จริง ๆ (sighting, geofence, observer)
+
+      🔒 invariant — **ห้ามสร้าง `job_id` ปลอมหรือ default ให้ event ที่ไม่มี job · ไม่มีคือไม่มี**
+
+      `job_id` กับ `subject_id` ไม่ซ้ำกัน — `job_id` คือสายเหตุ (งานแม่)
+      ส่วน `subject_id` คือหัวเรื่อง · `EXECUTION_STARTED` มี subject เป็น execution
+      แต่ `job_id` เป็น job ที่มันสังกัด
+  execution_id:
+    $ref: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml#/$defs/ExecutionId
+  agent_id:
+    $ref: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml#/$defs/AgentId
+  actor:
+    $ref: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml#/$defs/Principal
+  correlation_id:
+    $ref: https://schemas.agent-platform.internal/identity/v1/identity.schema.yaml#/$defs/Id
+    description: ผูก event ที่เป็นงานเดียวกันข้าม service — `job_id` ทำแทนไม่ได้
+
+  occurred_at:
+    type: string
+    format: date-time
+  sequence:
+    type: integer
+    minimum: 1
+    description: >-
+      ลำดับสำหรับ **เรียง** event ภายใน subject เดียวกันจากผู้ผลิตเดียวกัน — เพิ่มขึ้นเสมอ
+      ([ADR-0015](../../../decisions/0015-event-sequence-and-trail-closure.md))
+
+      มีอยู่เพราะ `occurred_at` เท่ากันเป๊ะได้ (หลาย event ใน transaction เดียว นาฬิกาเดียวกัน)
+      แล้วฐานข้อมูลไม่รับประกันลำดับของแถวที่เท่ากัน — ผู้อ่านเรียงด้วย `(occurred_at, sequence)`
+
+      ⚠️ **ไม่รับประกันความต่อเนื่อง** — ช่องว่างไม่ได้แปลว่ามีใบหาย · เลขนี้ตอบได้แค่ว่า
+      *ใบไหนมาก่อนใบไหน* ไม่ได้ตอบว่า *ครบหรือยัง* · การรู้ว่าใบสุดท้ายควรเป็นเลขอะไร
+      ต้องมาจากคำแถลงที่อยู่นอกลำดับ (ใบปิดท้ายของ subject ที่จบแล้ว หรือ checkpoint
+      ที่ชั้น store) ไม่ใช่จากตัวเลขบน event
+  source:
+    type: object
+    description: >-
+      🔒 invariant — external event ต้องคง source ไว้ให้รู้ตลอดไปว่ามาจากข้างนอก
+    required: [kind]
+    properties:
+      kind:
+        enum: [internal, external]
+      system:
+        type: string
+        description: "ระบบต้นทางเมื่อ `kind: external` เช่น `navi-ims`"
+
+  transition:
+    type: object
+    description: ใช้กับ `STATE_TRANSITION` — ทุกการเปลี่ยน state ต้องมี event ตัวนี้
+    properties:
+      from: { type: string }
+      to: { type: string }
+      reason: { type: string }
+  policy_result:
+    $ref: https://schemas.agent-platform.internal/policy/v1/policy-decision.schema.yaml#/$defs/DecisionSummary
+    description: >-
+      บันทึก **ทั้ง `action_risk` และ `authority` ที่ใช้ตัดสิน** ไม่ใช่แค่ผลลัพธ์
+      เพื่อให้ audit ย้อนหลังรู้ว่าตัดสินจากอะไร ([ADR-0010](../../../decisions/0010-risk-approval-taxonomy.md))
+
+      อ้าง `policy/v1` `$defs.DecisionSummary` **ไม่ประกาศรูปเอง**
+      ([ADR-0018](../../../decisions/0018-policy-result-single-source.md)) — เดิมประกาศซ้ำ
+      ทำให้ field ที่เพิ่มใน `Decision` ไม่ไหลมาที่นี่เองและไม่มีอะไรคอยจับว่าเพี้ยน
+
+      ⚠️ ไม่ใช่ทั้ง `Decision` โดยเจตนา — `reason` เป็น free text และ `expires_at`
+      ไม่มีความหมายในบันทึกที่ immutable แล้ว · `consent` ก็ไม่อยู่ในนี้เพราะ event
+      มี `consent` ของตัวเองที่ระดับบนสุด ใส่ซ้ำสองที่ในบันทึกเดียวคือ drift ที่รอเกิด
+  consent:
+    $ref: https://schemas.agent-platform.internal/consent/v1/consent.schema.yaml#/$defs/Evaluation
+    description: >-
+      ผลการประเมินความยินยอม ณ เวลาที่เกิด event นี้
+      ([ADR-0016](../../../decisions/0016-recording-which-consent-allowed-access.md))
+
+      นี่คือ **บ้านของ audit จริง ๆ** — `consent_rules` ข้อ 2 บังคับให้การให้ · การใช้ ·
+      และการเพิกถอน ออก event ทุกครั้งอยู่แล้ว field นี้ทำให้ event นั้นตอบได้ว่า
+      *ใบไหน* และ *ตอนนั้นเงื่อนไขผ่านจริงไหม* ซึ่งประเมินย้อนหลังไม่ได้
+
+      ปิดช่องที่ [ADR-0014](../../../decisions/0014-consent-access-time-conditions.md) ฝากไว้
+  usage:
+    $ref: https://schemas.agent-platform.internal/model/v1/inference.schema.yaml#/$defs/Usage
+  error:
+    $ref: https://schemas.agent-platform.internal/error/v1/error.schema.yaml
+  metadata:
+    type: object
+    description: >-
+      🔒 invariant — **ห้ามเก็บ private reasoning หรือ chain-of-thought เป็น audit record**
+      เก็บ structured metadata แทน
+
+guarantees:
+  description: >-
+    🔒 frozen — เป็นของ devfactory-core (RFC-0003 · RFC-0008)
+    ลดหรือถอนข้อใดข้อหนึ่ง = semantic change ต้องมี RFC ที่ repo นั้นก่อน
+  rules:
+    - "event เป็น append-only — แก้หรือลบไม่ได้"
+    - "no silent state change — ทุกการเปลี่ยน state ต้องมี event"
+    - "ทุก event ต้องตอบได้ว่าเกี่ยวกับอะไร — subject จำเป็นเสมอ ส่วน job_id optional"
+    - "ห้ามสร้าง job_id ปลอมหรือ default ให้ event ที่ไม่มี job"
+    - "event ที่ resolve tenant ไม่ได้ ให้ reject ที่ intake ห้ามเดา tenant ให้"
+    - "external event ต้องคง source ไว้ให้รู้ตลอดไปว่ามาจากข้างนอก"
+    - "ห้ามเก็บ private reasoning / chain-of-thought เป็น audit record"
+    - "trace ที่ไม่มี step ย่อยถือว่าถูกต้อง — execution ที่ไม่มี step event ไม่ได้แปลว่าไม่ได้ทำอะไร"
+
+platform_rules:
+  description: กฎระดับ schema ที่ `agent-platform` เพิ่มเอง — ไม่ใช่ semantics
+  rules:
+    - "ถ้า `subject_type: job` และมี `job_id` ทั้งสองค่าต้องตรงกัน"
+    - "consumer ที่เจอ `event_type` ที่ไม่รู้จักต้องเก็บ event ไว้แล้วข้ามการตีความ ห้าม drop และห้าม fail"
+    - "sequence ใช้เรียงเท่านั้น — ช่องว่างไม่มีความหมาย ห้ามตีความว่ามีใบหาย
+       ผู้ผลิตที่ใช้ transaction ที่ rollback ได้จะสร้างช่องว่างโดยไม่มีใครทำผิด"
+    - "event ที่ไม่มี sequence เรียงด้วย occurred_at อย่างเดียว — ห้ามถือว่าอยู่ก่อนหรือหลัง
+       ใบที่มี sequence โดยอัตโนมัติ (กันกรณี producer เก่ากับใหม่เขียนปนกันระหว่าง migrate)"

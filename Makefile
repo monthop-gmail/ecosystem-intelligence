@@ -2,6 +2,7 @@ PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python3)
 
 .PHONY: help install validate validate-github up down schema import import-dry \
         registry api openapi sync work graph mermaid impact guardian guardian-pr health \
+        conformance feedback emit \
         ask provider eval test test-all fmt
 
 help:
@@ -42,6 +43,12 @@ help:
 	@echo "  make guardian [REMOTE=1]              ตรวจทั้ง ecosystem"
 	@echo "  make guardian-pr PR=agent-platform#33 [POST=1]   รีวิว PR"
 	@echo ""
+	@echo ""
+	@echo ""
+	@echo "  M6 — Delivery Integration"
+	@echo "  make conformance      ตรวจว่า event ที่ปล่อยออกไป conform กับ event/v1"
+	@echo "  make feedback         เทียบ ecosystem.yaml กับของจริง แล้วเสนอส่วนต่าง"
+	@echo "  make emit TEAM=...    ดู event/v1 ที่จะปล่อยออกไป"
 	@echo ""
 	@echo "  รายงานรวม"
 	@echo "  make health [REMOTE=1] รายงานสุขภาพ ecosystem เป็น markdown"
@@ -84,6 +91,15 @@ api:
 
 openapi:
 	@$(PY) tools/export_openapi.py
+
+conformance:
+	@$(PY) conformance/payload_check.py
+
+feedback:
+	@$(PY) -m ecosystem_graph.integration.feedback
+
+emit:
+	@$(PY) -m ecosystem_graph.integration.emit --team "$(TEAM)"
 
 health:
 	@$(PY) -m ecosystem_graph.health $(if $(REMOTE),--remote,)
