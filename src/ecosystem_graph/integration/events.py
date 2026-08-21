@@ -16,7 +16,11 @@ ecosystem นี้เตือนตัวเองไว้ (goal `no-duplicat
   (ยืนยันด้วยการ validate กับ schema ที่ pin ไว้ ไม่ได้อนุมานจากคำอธิบาย)
 - `subject_type: record` — advisory เป็นบันทึกของโดเมนที่ไม่ได้เกิดจาก job
   ชนิดจริงอยู่ใน `metadata.record_type` ตามที่ schema กำหนด
-- `source.kind: external` — 🔒 invariant ของ contract: event จากข้างนอกต้องคง source ไว้
+- `source.kind` — **บอกขอบเขตที่ event กำลังข้าม ณ ตอนที่เขียนลง ไม่ใช่คุณสมบัติติดตัว event**
+  emitter ตัวนี้มีไว้ส่งข้ามขอบเขตออกไปอย่างเดียว จึงเป็น `external` เสมอ
+  ถ้าวันหนึ่งเราเก็บ event ของตัวเองลง log ของตัวเอง ทางนั้นต้องเรียกด้วย
+  `boundary="internal"` — ไม่งั้น log ของเราจะบอกว่า event ที่เราสร้างเองมาจากข้างนอก
+  (ข้อสังเกตจาก agent-platform#40)
 - `tenant_id: default` — ecosystem นี้ยังเป็น single tenant (devfactory-core RFC-0006)
 - **ห้ามใส่ chain-of-thought ลง metadata** — 🔒 invariant ของ event/v1
   เราใส่เฉพาะผลลัพธ์ที่มีโครงสร้าง (title, why, references) ไม่ใส่ร่องรอยการคิดของ model
@@ -26,6 +30,10 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 from typing import Any
+
+# ขอบเขตที่ event กำลังข้าม → source.kind
+# ไม่มีค่า default ที่ถูกเสมอ เพราะ external แปลว่า "นอกจากใคร" ซึ่งขึ้นกับผู้อ่าน
+BOUNDARY_KIND = {"outbound": "external", "internal": "internal"}
 
 ADVISORY_ISSUED = "ADVISORY_ISSUED"
 DRIFT_DETECTED = "ECOSYSTEM_DRIFT_DETECTED"
@@ -50,8 +58,15 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def _source(boundary: str) -> dict[str, str]:
+    if boundary not in BOUNDARY_KIND:
+        raise ValueError(f"boundary ต้องเป็น {' หรือ '.join(BOUNDARY_KIND)} ไม่ใช่ {boundary!r}")
+    return {"kind": BOUNDARY_KIND[boundary], "system": SOURCE_SYSTEM}
+
+
 def advisory_events(result: dict[str, Any], *, tenant_id: str = DEFAULT_TENANT,
-                    occurred_at: str | None = None) -> list[dict[str, Any]]:
+                    occurred_at: str | None = None,
+                    boundary: str = "outbound") -> list[dict[str, Any]]:
     """แปลงคำตอบของ advisor เป็น event/v1 หนึ่งใบต่อหนึ่งข้อเสนอ
 
     หนึ่งใบต่อหนึ่งข้อเสนอ ไม่ใช่ใบเดียวรวมทุกข้อ เพราะแต่ละข้อถูกรับไปทำแยกกันได้
@@ -74,10 +89,7 @@ def advisory_events(result: dict[str, Any], *, tenant_id: str = DEFAULT_TENANT,
             "correlation_id": correlation,
             "occurred_at": stamp,
             "sequence": i,
-            "source": {
-                "kind": "external",
-                "system": SOURCE_SYSTEM,
-            },
+            "source": _source(boundary),
             "metadata": {
                 "record_type": "ecosystem_advisory",
                 "team": team,
@@ -95,7 +107,8 @@ def advisory_events(result: dict[str, Any], *, tenant_id: str = DEFAULT_TENANT,
 
 
 def drift_events(findings: list[dict[str, Any]], *, tenant_id: str = DEFAULT_TENANT,
-                 occurred_at: str | None = None) -> list[dict[str, Any]]:
+                 occurred_at: str | None = None,
+                 boundary: str = "outbound") -> list[dict[str, Any]]:
     """finding ของ Guardian ที่เป็น error → event หนึ่งใบต่อหนึ่ง finding
 
     เฉพาะ error — warning เป็นข้อสังเกต ไม่ใช่เหตุการณ์ที่ต้องบันทึกถาวร
@@ -114,7 +127,7 @@ def drift_events(findings: list[dict[str, Any]], *, tenant_id: str = DEFAULT_TEN
         "correlation_id": correlation,
         "occurred_at": stamp,
         "sequence": i,
-        "source": {"kind": "external", "system": SOURCE_SYSTEM},
+        "source": _source(boundary),
         "metadata": {
             "record_type": "ecosystem_drift",
             "rule": f["rule"],
@@ -123,3 +136,17 @@ def drift_events(findings: list[dict[str, Any]], *, tenant_id: str = DEFAULT_TEN
             "fix": f["fix"],
         },
     } for i, f in enumerate(errors, start=1)]
+
+
+def assert_outbound(payloads: list[dict[str, Any]]) -> None:
+    """กันลืม — อะไรที่ส่งออกนอกต้องเป็น external ทุกใบ
+
+    ใช้ตรงจุดที่เขียนไฟล์หรือส่งออก ไม่ใช่ตรงที่สร้าง เพราะจุดที่ผิดพลาดได้จริง
+    คือวันที่มีคนเอา event ที่สร้างไว้สำหรับ log ภายในมาส่งออกโดยไม่ได้ตั้งใจ
+    """
+    wrong = [e["event_id"] for e in payloads if e["source"]["kind"] != "external"]
+    if wrong:
+        raise ValueError(
+            f"event ที่ส่งออกนอกต้องมี source.kind=external — ผิด {len(wrong)} ใบ: "
+            f"{wrong[:5]}"
+        )

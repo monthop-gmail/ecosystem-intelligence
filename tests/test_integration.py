@@ -276,3 +276,31 @@ def test_shape_check_จับได้เมื่อ_event_ใบเดีย�
     missing = [full[0], {**full[1], "metadata": {"record_type": "r"}}]
     assert mod.shape(full) != mod.shape(missing), \
         "ใบเดียวขาด key ต้องจับได้ ไม่ใช่ถูกกลบด้วยใบอื่น"
+
+
+# ── source.kind เป็นค่าที่สัมพันธ์กับขอบเขต (agent-platform#40) ─────────
+def test_emitter_ส่งออกนอกเป็น_external(sample_result):
+    for e in events.advisory_events(sample_result):
+        assert e["source"]["kind"] == "external"
+
+
+def test_ทางสำหรับ_log_ตัวเองต้องเป็น_internal(sample_result):
+    """กันลืม — วันที่เราเก็บ event ของตัวเองลง log ตัวเอง ต้องไม่บอกว่ามาจากข้างนอก"""
+    for e in events.advisory_events(sample_result, boundary="internal"):
+        assert e["source"]["kind"] == "internal"
+    for e in events.drift_events(
+            [{"rule": "r", "severity": "error", "subject": "s", "detail": "d",
+              "fix": "f", "title": "t", "why": "w"}], boundary="internal"):
+        assert e["source"]["kind"] == "internal"
+
+
+def test_boundary_ที่ไม่รู้จักต้องพัง(sample_result):
+    with pytest.raises(ValueError, match="boundary"):
+        events.advisory_events(sample_result, boundary="ข้างนอกมั้ง")
+
+
+def test_assert_outbound_จับ_event_ที่ไม่ควรส่งออก(sample_result):
+    internal = events.advisory_events(sample_result, boundary="internal")
+    with pytest.raises(ValueError, match="external"):
+        events.assert_outbound(internal)
+    events.assert_outbound(events.advisory_events(sample_result))  # ต้องไม่โยน

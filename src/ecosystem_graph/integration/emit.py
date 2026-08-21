@@ -65,6 +65,9 @@ def main(argv: list[str] | None = None) -> int:
         print("ไม่มี event ให้ปล่อย", file=sys.stderr)
         return 0
 
+    # ทุกอย่างที่ออกจากคำสั่งนี้ข้ามขอบเขตออกไป — ตรวจก่อนเขียน ไม่ใช่หวังว่าถูก
+    events.assert_outbound(payloads)
+
     if args.format == "jsonl":
         text = "\n".join(json.dumps(e, ensure_ascii=False, sort_keys=True)
                          for e in payloads) + "\n"
