@@ -251,6 +251,28 @@ def consumes_without_manifest(conn, rule) -> list[dict]:
             for r in rows]
 
 
+def conformance_without_pin(conn, rule) -> list[dict]:
+    """passing ที่ไม่มี pin — ผ่านเทียบกับ contract ฉบับไหนก็ไม่รู้
+
+    botforge ถูกบันทึกใน consumers.md ของ agent-platform ว่า passing ตั้งแต่
+    23 ส.ค. แต่ manifest ของเขาไม่มี pinned_contracts_commit · ตัวทะเบียนเอง
+    ไม่ได้ตรวจข้อนี้ เราจึงรับ "passing" มาโดยที่มันพิสูจน์อะไรไม่ได้
+    """
+    rows = fetch_all(conn, """
+        SELECT c.id AS component, c.owner AS team, cf.last_verified
+          FROM components c
+          JOIN conformance cf ON cf.component_id = c.id
+         WHERE cf.status = 'passing' AND cf.pinned_commit IS NULL
+         ORDER BY c.id
+    """)
+    return [_finding(rule, r["component"],
+                     f"บันทึกว่า passing (ยืนยัน {r['last_verified'] or 'ไม่ระบุวัน'}) "
+                     f"แต่ manifest ไม่มี pinned_contracts_commit — "
+                     f"ไม่รู้ว่าผ่านเทียบกับ contract commit ไหน",
+                     team=r["team"])
+            for r in rows]
+
+
 def blocking_past_backstop(conn, rule) -> list[dict]:
     """ข้อที่เราประกาศว่าค้าง และตั้งกำหนดกับตัวเองไว้ — เลยกำหนดแล้วหรือยัง
 
@@ -290,7 +312,8 @@ def manifest_drift(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
     """
     gh = gh or GitHubClient()
     rows = fetch_all(conn, """
-        SELECT c.id AS component, c.repository, cf.manifest, cf.pinned_commit,
+        SELECT c.id AS component, c.repository, cf.manifest, cf.manifest_ref,
+               cf.pinned_commit,
                COALESCE((SELECT array_agg(contract_id ORDER BY contract_id)
                            FROM component_contracts
                           WHERE component_id = c.id AND relation = 'consumes'), '{}') AS declared
@@ -300,7 +323,8 @@ def manifest_drift(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
     """)
     out = []
     for r in rows:
-        path = f"repos/{gh.owner}/{r['repository']}/contents/{r['manifest']}"
+        path = (f"repos/{gh.owner}/{r['repository']}/contents/{r['manifest']}"
+                + (f"?ref={r['manifest_ref']}" if r.get("manifest_ref") else ""))
         try:
             import base64
             blob = gh.api(path)
@@ -464,6 +488,7 @@ def pinned_contract_stale(conn, rule, *, gh: GitHubClient | None = None) -> list
 # ─────────────────────────────────────────────────────────────────────────
 CHECKS: dict[str, Callable] = {
     "blocking_past_backstop": blocking_past_backstop,
+    "conformance_without_pin": conformance_without_pin,
     "consumer_registry_drift": consumer_registry_drift,
     "semantics_version_drift": semantics_version_drift,
     "pinned_contract_stale": pinned_contract_stale,

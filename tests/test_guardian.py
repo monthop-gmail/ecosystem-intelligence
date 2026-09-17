@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from ecosystem_graph import queries as q
-from ecosystem_graph.db import connect
+from ecosystem_graph.db import connect, fetch_all
 from ecosystem_graph.guardian import checks, review
 
 from .conftest import requires_db
@@ -108,8 +108,9 @@ def test_contract_ที่มีคนรอใช้ปิดไม่ได�
     ตอนนี้ต้องดูครบสามทาง: ใครรอใช้ · ใคร $ref ถึง · plane ไหนจองไว้"""
     found = {f["subject"]: f for f in
              checks.contracts_without_consumer(conn, rules["contract-without-consumer"])}
-    assert found["tool/v1"]["closable"] is False, "มีคนประกาศเจตนาจะใช้ ปิดไม่ได้"
-    assert "enterprise-knowledge" in found["tool/v1"]["detail"]
+    assert "tool/v1" not in found, "agent-builder-dsh-poc pin tool/v1 แล้ว ไม่ควรถูกรายงาน"
+    assert found["provider/v1"]["closable"] is False, "มีคนประกาศเจตนาจะใช้ ปิดไม่ได้"
+    assert "model-gateway" in found["provider/v1"]["detail"]
     # ตัวที่ไม่มีคนรอ ต้องไม่ตอบว่าปิดได้ตอนที่ยังตรวจ $ref ไม่ได้
     assert found["mcp/v1"]["closable"] is None
 
@@ -143,6 +144,30 @@ def test_manifest_drift_เทียบกับของจริง(conn, rule
     assert "devfactory-core" in subjects
     drift = next(f for f in found if f["subject"] == "devfactory-core")
     assert "ecosystem.yaml มีแต่ manifest ไม่มี" in drift["detail"]
+
+
+def test_manifest_ที่ไม่ได้อยู่_branch_หลักต้องอ่านถูก_ref(conn, rules):
+    """botforge วาง manifest ไว้ที่ branch v2 — อ่าน main แล้วได้ 404
+
+    check ที่อ่าน branch หลักอย่างเดียวจะรายงานว่า 'อ่าน manifest ไม่ได้'
+    ซึ่งชี้ไปผิดที่: ดูเหมือน repo เขาพัง ทั้งที่เราขอผิด branch
+    """
+    asked: list[str] = []
+
+    class RecordingGH:
+        owner = "monthop-gmail"
+
+        def api(self, path, **kw):
+            import base64
+            asked.append(path)
+            return {"content": base64.b64encode(b"contracts: []\n").decode()}
+
+    checks.manifest_drift(conn, rules["manifest-drift"], gh=RecordingGH())
+    botforge = [p for p in asked if "/botforge/" in p]
+    assert botforge, "ต้องไปอ่าน manifest ของ botforge ด้วย"
+    assert all(p.endswith("?ref=v2") for p in botforge), botforge
+    assert not any("?ref=" in p for p in asked if "/devfactory-core/" in p), \
+        "ตัวที่อยู่ branch หลักต้องไม่ใส่ ref"
 
 
 def test_อ่าน_manifest_ไม่ได้ต้องบอก_ไม่ใช่เงียบ(conn, rules):
@@ -375,3 +400,21 @@ def test_ข้อความ_pin_ต้องแยกออกว่าต่
     assert a != b
     shown = found[0]["detail"]
     assert shown.count(a[:20]) + shown.count(b[:20]) >= 2 or a[:20] != b[:20]
+
+
+def test_passing_ที่ไม่มี_pin_ต้องถูกรายงาน(conn, rules):
+    """"ผ่าน" ที่ไม่บอกว่าผ่านเทียบกับ commit ไหน พิสูจน์อะไรไม่ได้
+
+    ทะเบียน consumer ของ agent-platform บันทึก botforge ว่า passing
+    แต่ manifest เขาไม่มี pinned_contracts_commit — เรารับตัวเลขนั้นมาเฉย ๆ
+    อยู่หลายรอบก่อนจะมี check ตัวนี้ (18 ก.ย.)
+    """
+    found = checks.conformance_without_pin(conn, rules["conformance-without-pin"])
+    flagged = {f["subject"] for f in found}
+    assert "botforge" in flagged
+
+    with_pin = {r["component_id"] for r in fetch_all(
+        conn, "SELECT component_id FROM conformance WHERE pinned_commit IS NOT NULL")}
+    assert with_pin, "ถ้าไม่มีใคร pin เลย ข้อถัดไปพิสูจน์อะไรไม่ได้"
+    assert not (flagged & with_pin), "ตัวที่ pin ไว้แล้วต้องไม่ถูกรายงาน"
+    assert all(f["severity"] == "warn" for f in found), "เป็นช่องว่างของทีมอื่น ไม่ใช่ error ของเรา"

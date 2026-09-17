@@ -18,9 +18,14 @@ def test_ขาขึ้น_devfactory_ขึ้นกับ_agent_platform(conn
 
 
 def test_ขาลง_ใครขึ้นกับ_agent_platform(conn):
-    """ecosystem-intelligence อยู่ในลิสต์ตั้งแต่ M6 — เราเป็น consumer ของ event/v1 จริง"""
+    """ยืนยันทิศทางของ edge ไม่ใช่จำนวนสมาชิก
+
+    เดิมเทสต์นี้ fix ลิสต์ไว้ 3 ตัว พอทะเบียนพบ botforge กับ agent-builder-dsh-poc
+    (18 ก.ย.) มันแดงทั้งที่ระบบทำงานถูก — เทสต์แบบ snapshot ลงโทษการค้นพบ
+    """
     ids = {d["component"] for d in q.dependents_of(conn, "agent-platform")}
-    assert ids == {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"}
+    assert {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"} <= ids
+    assert "agent-platform" not in ids, "ผู้ expose ไม่ใช่ consumer ของตัวเอง"
 
 
 def test_expected_ไม่ถูกนับเป็น_dependency(conn):
@@ -31,16 +36,27 @@ def test_expected_ไม่ถูกนับเป็น_dependency(conn):
 
 def test_impact_ของ_execution_v1(conn):
     r = q.contract_impact(conn, "execution/v1")
-    assert r["affected_components"] == ["devfactory-core"]
-    assert r["affected_teams"] == ["delivery-team"]
+    assert "devfactory-core" in r["affected_components"]
+    assert "delivery-team" in r["affected_teams"]
     assert r["closable"] is False
     assert set(r["expected_by"]) == {"agent-backend-os", "agent-fleet"}
 
 
-def test_impact_ของ_tool_v1_ยังปิดได้(conn):
-    r = q.contract_impact(conn, "tool/v1")
+def test_contract_ที่ไม่มีใคร_pin_ตอบว่าปิดได้ไม่ได้(conn):
+    """DB เห็นแค่สองในสามสัญญาณ — $ref อยู่ในไฟล์ schema ไม่ได้อยู่ในนี้
+
+    ก่อนหน้านี้ contract_impact ตอบ closable=True จากสัญญาณเดียว
+    ซึ่งเป็นที่มาของคำแนะนำผิดในรายงาน 22 ส.ค. · guardian แก้ไปแล้ว
+    แต่ query ตัวนี้ยังตอบแบบเดิมอยู่จนถึง 18 ก.ย.
+    """
+    r = q.contract_impact(conn, "model/v1")
     assert r["affected_components"] == []
-    assert r["closable"] is True
+    assert r["closable"] is None, "ยังไม่ได้ตรวจ $ref — ตอบว่าปิดได้ไม่ได้"
+    assert "$ref" in r["closable_why"]
+
+    reserved = q.contract_impact(conn, "mcp/v1")
+    assert reserved["closable"] is False
+    assert reserved["reserved_by_planes"] == ["tools"]
 
 
 def test_semantics_owner_ปรากฏใน_impact(conn):

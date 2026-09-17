@@ -153,6 +153,17 @@ rules:
     fix: ตรวจ diff ของ contract ตั้งแต่ commit ที่ pin แล้วตัดสินใจว่าจะ re-pin ไหม
     source: ADR-0006
 
+  - id: conformance-without-pin
+    severity: warn
+    check: conformance_without_pin
+    title: บันทึกว่า passing แต่ไม่ได้ pin commit ของ contract
+    why: >-
+      ADR-0006 ให้ผ่านได้ต่อเมื่อ manifest บอกด้วยว่า pin contract ไว้ที่ commit ไหน
+      "ผ่าน" ที่ไม่มี pin คือผ่านเทียบกับ contract ฉบับไหนก็ไม่รู้ — ต้นทางขยับเมื่อไร
+      ก็ไม่มีใครรู้ว่ามันยังผ่านอยู่หรือเปล่า เป็น check ที่เขียวทั้งที่ตอบไม่ได้
+    fix: ให้ทีมเจ้าของใส่ pinned_contracts_commit ใน manifest แล้ว re-verify
+    source: ADR-0006
+
   - id: blocking-past-backstop
     severity: warn
     check: blocking_past_backstop

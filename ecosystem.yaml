@@ -10,7 +10,7 @@ apiVersion: ecosystem.intelligence/v0.1
 
 metadata:
   name: monthop-ecosystem
-  updated: 2026-09-17
+  updated: 2026-09-18
   maintained_by: ecosystem-team
   note: >-
     v0.1 ดูแลด้วยมือโดยเจตนา — การ sync อัตโนมัติจาก GitHub เป็นงานของ M3
@@ -232,6 +232,8 @@ repositories:
   - { id: ai-web-harness,        url: "https://github.com/monthop-gmail/ai-web-harness",        visibility: public, default_branch: main,   exists: true,  manifest: null }
   - { id: navi-ims,              url: "https://github.com/monthop-gmail/navi-ims",              visibility: unknown, default_branch: master, exists: true, manifest: null }
   - { id: ecosystem-intelligence, url: "https://github.com/monthop-gmail/ecosystem-intelligence", visibility: public, default_branch: main, exists: true, manifest: platform-contract.yaml }
+  - { id: botforge,              url: "https://github.com/monthop-gmail/botforge",              visibility: public, default_branch: main,   exists: true,  manifest: platform-contract.yaml }
+  - { id: agent-builder-dsh-poc, url: "https://github.com/monthop-gmail/agent-builder-dsh-poc", visibility: public, default_branch: main,   exists: true,  manifest: platform-contract.yaml }
   - { id: agent-gateway,         url: null, visibility: null, default_branch: null, exists: false, manifest: null }
   - { id: agent-backend-os,      url: null, visibility: null, default_branch: null, exists: false, manifest: null }
   - { id: agent-fleet,           url: null, visibility: null, default_branch: null, exists: false, manifest: null }
@@ -440,3 +442,38 @@ components:
     exposes: []
     consumes: []
     conformance: { status: unknown, manifest: null }
+
+  - id: botforge
+    name: BotForge
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: เครื่องมือสร้าง LINE bot — เป็น consumer ของ contract ไม่ได้ implement plane ใด
+    owner: platform-team
+    repository: botforge
+    status: active
+    exposes: []
+    consumes: [error/v1, event/v1]
+    conformance:
+      status: passing
+      manifest: platform-contract.yaml
+      manifest_ref: v2
+      last_verified: 2026-08-23
+      evidence: agent-platform/architecture/consumers.md — manifest อยู่ branch v2 ไม่ใช่ main
+      note: ไม่มี pinned_contracts_commit ใน manifest — ยังไม่ผ่าน ADR-0006 ข้อ pin
+
+  - id: agent-builder-dsh-poc
+    name: Agent Builder (DSH PoC)
+    implements: []
+    outside_plane_model: true
+    outside_plane_reason: PoC ที่ประกอบ agent จาก manifest แล้วส่งไปรันบน harness — ใช้ plane ไม่ได้เป็น plane
+    owner: platform-team
+    repository: agent-builder-dsh-poc
+    status: active
+    exposes: []
+    consumes: [agent/v1, tool/v1, capability/v1, profile/v1, execution/v1, identity/v1]
+    conformance:
+      status: passing
+      manifest: platform-contract.yaml
+      pinned_commit: 639da9e8865fef8c5d74e5f61789957c2f32cf16
+      last_verified: 2026-09-03
+      evidence: agent-platform/architecture/consumers.md — ผู้ใช้ contract รายเดียวที่ pin ครบ 6 ตัว

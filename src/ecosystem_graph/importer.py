@@ -135,12 +135,12 @@ def _write(conn, doc: dict) -> None:
                (c["id"], dep["component"], dep["reason"]))
         conf = c["conformance"]
         ex("""INSERT INTO conformance
-                 (component_id, status, manifest, pinned_commit, last_verified,
-                  evidence, note, waived_until, waiver_ref)
-              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-           (c["id"], conf["status"], conf.get("manifest"), conf.get("pinned_commit"),
-            conf.get("last_verified"), conf.get("evidence"), conf.get("note"),
-            conf.get("waived_until"), conf.get("waiver_ref")))
+                 (component_id, status, manifest, manifest_ref, pinned_commit,
+                  last_verified, evidence, note, waived_until, waiver_ref)
+              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+           (c["id"], conf["status"], conf.get("manifest"), conf.get("manifest_ref"),
+            conf.get("pinned_commit"), conf.get("last_verified"), conf.get("evidence"),
+            conf.get("note"), conf.get("waived_until"), conf.get("waiver_ref")))
 
 
 def run(path: Path | str | None = None, *, dry_run: bool = False) -> dict[str, Any]:

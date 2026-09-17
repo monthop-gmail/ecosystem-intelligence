@@ -445,6 +445,13 @@
         },
         "waiver_ref": {
           "type": "string"
+        },
+        "manifest_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "branch ที่ manifest อยู่ — ไม่ใส่ = branch หลัก"
         }
       },
       "additionalProperties": false

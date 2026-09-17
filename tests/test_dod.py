@@ -104,13 +104,13 @@ def test_dod_q2_ตอบครบทั้ง_6_ด้าน(conn, contract):
 def test_dod_q2_คำตอบตรงกับความจริงของ_ecosystem(conn):
     """ไม่ใช่แค่มีฟิลด์ครบ — ค่าต้องถูกด้วย"""
     r = advisor.impact(conn, "execution/v1")
-    assert r["facts"]["affected_components"] == ["devfactory-core"]
-    assert r["facts"]["affected_teams"] == ["delivery-team"]
-    assert r["facts"]["affected_repositories"] == ["devfactory-core"]
+    assert "devfactory-core" in r["facts"]["affected_components"]
+    assert "delivery-team" in r["facts"]["affected_teams"]
+    assert "devfactory-core" in r["facts"]["affected_repositories"]
 
-    unused = advisor.impact(conn, "tool/v1")
+    unused = advisor.impact(conn, "model/v1")
     assert unused["facts"]["affected_components"] == []
-    assert unused["facts"]["closable"] is True
+    assert unused["facts"]["closable"] is None, "ไม่มีใคร pin ≠ ปิดได้"
 
 
 def test_dod_q2_บอกลำดับการประสานงาน(conn):

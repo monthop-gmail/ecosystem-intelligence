@@ -110,7 +110,7 @@ def test_ไม่มี_diff_ตอบไม่แน่ใจ():
 def test_ต้นไม้ขาลงจาก_agent_platform(conn):
     tree = impact.dependency_tree(conn, "agent-platform", direction="down")
     kids = {c["node"] for c in tree["children"]}
-    assert kids == {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"}
+    assert {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"} <= kids
 
 
 def test_ต้นไม้ขาขึ้นจาก_devfactory(conn):
@@ -170,8 +170,8 @@ def test_contract_ที่ไม่มีใครใช้เปลี่ย�
 
 def test_ร่าง_issue_ไม่ได้เปิดให้จริง(conn):
     r = impact.cross_team(conn, "execution/v1", level="breaking")
-    draft = r["draft_issues"][0]
-    assert draft["repository"] == "devfactory-core"
+    # หาใบของ devfactory-core ไม่ใช่หยิบใบแรก — ลำดับเปลี่ยนเมื่อมี consumer เพิ่ม
+    draft = next(d for d in r["draft_issues"] if d["repository"] == "devfactory-core")
     # อ่าน pin จาก graph ไม่ใช่ฝัง SHA ไว้ — ทีมอื่น re-pin ได้ตลอด
     # เทสต์ที่ฝัง SHA จะแดงทุกครั้งที่เขา re-pin ทั้งที่ไม่มีอะไรผิด (เกิดแล้ว 17 ก.ย.)
     consumers = impact.contract_change(conn, "execution/v1", "breaking")["consumers"]
@@ -193,8 +193,9 @@ def test_contract_ที่ไม่มีคืน_None(conn):
 # ── component change ──────────────────────────────────────────────────
 def test_component_change_เดินตาม_contract_ที่_expose(conn):
     r = impact.component_change(conn, "agent-platform")
-    assert set(r["affected_components"]) == {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"}
-    assert set(r["affected_teams"]) == {"delivery-team", "care-team", "ecosystem-team"}
+    assert {"devfactory-core", "care-agent-platform", "ecosystem-intelligence"} <= set(
+        r["affected_components"])
+    assert {"delivery-team", "care-team", "ecosystem-team"} <= set(r["affected_teams"])
 
 
 def test_component_ที่ไม่มีใครขึ้นกับ(conn):

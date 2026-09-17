@@ -196,6 +196,24 @@ def contract_impact(conn, contract_id: str) -> dict[str, Any]:
          WHERE contract_id = %s AND relation = 'expected' ORDER BY component_id
     """, (contract_id,))
     contract = get_contract(conn, contract_id)
+
+    # "ปิดได้" ต้องดูให้ครบสามทาง — ใครรอใช้ · ใคร $ref ถึง · plane ไหนจองไว้
+    # ที่นี่อ่านได้แค่สองทาง เพราะ $ref อยู่ในไฟล์ schema ของ agent-platform
+    # ไม่ได้อยู่ใน DB · จึงตอบ "ปิดได้" ไม่ได้ ตอบได้แค่ "ปิดไม่ได้" กับ "ยังไม่รู้"
+    # (guardian contract-without-consumer + REMOTE=1 คือตัวที่ตอบว่าปิดได้)
+    reserved = [p["id"] for p in list_planes(conn) if contract_id in p["contracts"]]
+    if consumers:
+        closable, why = False, f"มีคน pin อยู่ {len(consumers)} ราย"
+    elif waiting:
+        closable, why = False, ("ยังไม่มีใคร pin แต่ "
+                                + ", ".join(w["component"] for w in waiting)
+                                + " ประกาศเจตนาจะใช้")
+    elif reserved:
+        closable, why = False, f"plane {', '.join(reserved)} จองไว้"
+    else:
+        closable, why = None, ("ยังไม่มีใคร pin — แต่ยังไม่ได้ตรวจ $ref "
+                               "ระหว่าง contract · ใช้ guardian REMOTE=1 ก่อนสรุป")
+
     return {
         "contract": contract_id,
         "authority": contract["authority"] if contract else None,
@@ -205,7 +223,9 @@ def contract_impact(conn, contract_id: str) -> dict[str, Any]:
         "affected_repositories": sorted({c["repository"] for c in consumers if c["repository"]}),
         "consumers": consumers,
         "expected_by": [w["component"] for w in waiting],
-        "closable": not consumers,
+        "closable": closable,
+        "closable_why": why,
+        "reserved_by_planes": reserved,
     }
 
 
