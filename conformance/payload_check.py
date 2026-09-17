@@ -12,6 +12,7 @@
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -33,6 +34,27 @@ PINNED = yaml.safe_load((ROOT / "conformance" / "pinned.yaml").read_text(encodin
 
 # คำที่ห้ามโผล่ใน metadata — event/v1 invariant: ห้ามเก็บ private reasoning
 FORBIDDEN_KEYS = {"thinking", "reasoning", "chain_of_thought", "scratchpad", "raw_response"}
+
+MANIFEST = yaml.safe_load((ROOT / "platform-contract.yaml").read_text(encoding="utf-8"))
+DECLARED_TEXT = {f["path"] for f in MANIFEST.get("text_fields") or []}
+THAI = re.compile(r"[\u0e00-\u0e7f]")
+
+
+def _leaves(node, path="$"):
+    """เดินถึง leaf — object กับ array เป็นภาชนะ ไม่ใช่ค่า (RFC-0013 ข้อ 1)"""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            yield from _leaves(v, f"{path}.{k}")
+    elif isinstance(node, list):
+        for v in node:
+            yield from _leaves(v, f"{path}[]")
+    else:
+        yield path, node
+
+
+def _is_human_text(v) -> bool:
+    """เอนเอียงไปทาง 'ใช่' โดยตั้งใจ — ถูกบังคับให้ประกาศเกิน ดีกว่าหลุดโดยไม่มีใครเห็น"""
+    return isinstance(v, str) and (" " in v or len(v) > 64 or bool(THAI.search(v)))
 
 
 def _validator() -> Draft202012Validator:
@@ -98,6 +120,19 @@ def guarantees(payloads: list[dict]) -> list[str]:
         # 7. subject_type=record ต้องบอกชนิดจริงใน metadata.record_type
         if e["subject_type"] == "record" and not meta.get("record_type"):
             problems.append(f"{tag}: subject_type=record แต่ไม่มี metadata.record_type")
+
+    # 9. leaf ที่ถือข้อความของมนุษย์ ต้องประกาศไว้ใน platform-contract.yaml
+    #    (event/v1 semantics 1.3 · devfactory-core RFC-0013 ข้อ 1–2)
+    #    "ก่อนหน้านี้: มีคนพิมพ์ลงช่องที่รับได้ → ไม่มีใครเห็น
+    #     หลังจากนี้: ต้องแก้สัญญาก่อนถึงจะเพิ่มช่องได้ → มีคนรีวิว"
+    undeclared: dict[str, str] = {}
+    for e in payloads:
+        for path, value in _leaves(e):
+            if _is_human_text(value) and path not in DECLARED_TEXT:
+                undeclared.setdefault(path, str(value)[:60])
+    for path, sample in sorted(undeclared.items()):
+        problems.append(f"{path}: ถือข้อความของมนุษย์แต่ไม่ได้ประกาศใน text_fields "
+                        f"— {sample!r}")
 
     # 8. sequence เรียง event **ภายใน subject เดียวกัน** ไม่ใช่ภายใน correlation
     #
@@ -165,7 +200,7 @@ def main() -> int:
     if schema_errors or problems:
         print(f"\n❌ conformance ไม่ผ่าน — schema {len(schema_errors)} · guarantee {len(problems)}")
         return 1
-    print(f"\n✅ conformance ผ่าน — schema ครบทุกใบ · guarantee 8 ข้อครบ")
+    print(f"\n✅ conformance ผ่าน — schema ครบทุกใบ · guarantee 9 ข้อครบ")
     return 0
 
 

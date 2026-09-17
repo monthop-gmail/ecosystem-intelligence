@@ -61,6 +61,22 @@ $defs:
         $ref: '#/$defs/ActorId'
       display_name:
         type: string
+        description: >-
+          ชื่อที่คนอ่านออก — **optional โดยเจตนา** `required` มีแค่ `type` กับ `id`
+          การไม่ใส่จึงยัง conform เต็มที่ และ `id` ชี้กลับไปหาตารางผู้ใช้ได้อยู่แล้ว
+          สำหรับคนที่มีสิทธิ์อ่านตารางนั้น
+
+          ⚠️ **ถ้า `type: human` ค่านี้คือชื่อคนจริง** — เมื่อ `Principal` ถูกฝังใน
+          audit record ที่ append-only ชื่อนั้นจะลบไม่ได้ และสิทธิ์การอ่านจะไม่ผูกกับ
+          consent แบบเดียวกับตารางของโดเมน
+
+          🔒 **ผู้ผลิต audit ควรตัดฟิลด์นี้ออกที่จุด emit** — รวม `on_behalf_of`
+          ที่ซ้อนกันด้วย · ใส่ได้ใน request context ที่อายุสั้น ไม่ใช่ในบันทึกถาวร
+
+          เหตุที่เขียนกำกับ — `care-agent-platform` ไล่ leaf ของ audit event จริง 112 ใบ
+          แล้วพบชื่อคนใน **112 ใบ** คือทุกใบที่ระบบเคยเขียน · มองไม่เห็นมาก่อนเพราะ
+          **มันไม่ใช่ฟิลด์ที่โดเมนใส่ แต่เป็นฟิลด์ของสัญญาเอง**
+          ([ADR-0031](../../../decisions/0031-the-field-everyone-thought-was-someone-elses.md))
       on_behalf_of:
         $ref: '#/$defs/Principal'
         description: >-

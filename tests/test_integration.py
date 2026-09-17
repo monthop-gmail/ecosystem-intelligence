@@ -389,3 +389,61 @@ def test_pin_ของทีมอื่นต้องเป็น_sha_เต�
         if pin:
             assert re.fullmatch(r"[0-9a-f]{40}", pin), \
                 f"{c['id']}: pinned_commit ต้องเป็น SHA เต็ม 40 ตัว ไม่ใช่ {pin!r}"
+
+
+# ── event/v1 semantics 1.3 · RFC-0013 audit fields that hold human text ───
+def _payload_check():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "payload_check", ROOT / "conformance" / "payload_check.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_leaf_ข้อความที่ไม่ได้ประกาศทำให้_conformance_ตก():
+    """RFC-0013 ข้อ 2 — ก่อนหน้านี้มีคนพิมพ์ลงช่องที่รับได้แล้วไม่มีใครเห็น
+    หลังจากนี้ต้องแก้สัญญาก่อนถึงจะเพิ่มช่องได้"""
+    pc = _payload_check()
+    leaked = [{"event_id": "e1", "tenant_id": "t", "subject_type": "record",
+               "subject_id": "s1", "sequence": 1, "correlation_id": "c1",
+               "source": {"kind": "external", "system": "x"},
+               "metadata": {"record_type": "r", "note": "ข้อความที่คนพิมพ์เข้ามาเอง"}}]
+    assert any("ไม่ได้ประกาศ" in p for p in pc.guarantees(leaked))
+
+
+def test_อ่านที่_leaf_ไม่ใช่ที่_field_ระดับบน():
+    """RFC-0013 ข้อ 1 — object กับ array เป็นภาชนะ ไม่ใช่ค่า
+    อ่านที่ระดับบนแล้วจะไม่มี event ใบไหนผ่านเลย เพราะ source/metadata เป็น object"""
+    pc = _payload_check()
+    paths = dict(pc._leaves({"a": {"b": "x"}, "c": ["y", "z"]}))
+    assert set(paths) == {"$.a.b", "$.c[]"}
+
+
+def test_ทุก_leaf_ที่ประกาศบอกได้ว่ากติกาการลบอยู่ชั้นไหน():
+    """RFC-0013 ข้อ 3 — append-only ลบราย field ไม่ได้ ต้องบอกว่าทำอะไรแทน"""
+    mf = yaml.safe_load((ROOT / "platform-contract.yaml").read_text(encoding="utf-8"))
+    fields = mf["text_fields"]
+    assert fields
+    for f in fields:
+        assert f["path"].startswith("$."), f
+        assert f["written_by"] in ("human", "system"), f
+        assert f.get("detail", "").strip(), f"{f['path']} ไม่ได้บอกว่ามันคืออะไร"
+        assert f.get("retention_layer", "").strip(), f"{f['path']} ไม่ได้บอกชั้นของการลบ"
+
+
+def test_ที่ประกาศไว้ต้องมีอยู่จริงในสิ่งที่เราปล่อย(sample_result):
+    """ประกาศเกินก็เป็นหนี้ — ช่องที่ไม่มีอยู่จริงทำให้คนอ่านคิดว่าเรารับข้อความตรงนั้น"""
+    mf = yaml.safe_load((ROOT / "platform-contract.yaml").read_text(encoding="utf-8"))
+    declared = {f["path"] for f in mf["text_fields"]}
+    pc = _payload_check()
+
+    produced = set()
+    for e in events.advisory_events(sample_result):
+        produced |= {p for p, _ in pc._leaves(e)}
+    drift = [{"rule": "r", "severity": "error", "subject": "s",
+              "detail": "d", "fix": "f", "title": "t", "why": "w"}]
+    for e in events.drift_events(drift):
+        produced |= {p for p, _ in pc._leaves(e)}
+
+    assert declared <= produced, f"ประกาศไว้แต่ไม่มีจริง: {sorted(declared - produced)}"

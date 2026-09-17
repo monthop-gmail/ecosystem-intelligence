@@ -15,7 +15,7 @@ contracts:
 
 conformance:
   status: passing
-  last_verified: 2026-08-22
+  last_verified: 2026-09-17
 
   # ADR-0006 บังคับ consumer 3 ข้อ
   #   1. manifest         ไฟล์นี้
@@ -28,7 +28,7 @@ conformance:
   # ⚠️ ข้อ 3 จะบล็อกการ merge ได้จริงต่อเมื่อเปิด branch protection แล้วตั้ง check
   #    เป็น required — เป็น repo setting ไม่ใช่สิ่งที่ไฟล์นี้ยืนยันได้
 
-pinned_contracts_commit: 099e4b57214a64912c9e215e75e4fe001a64e770   # conformance/pinned.yaml
+pinned_contracts_commit: a5138dfe8f152756a789c43495e95eb64f82dafb   # conformance/pinned.yaml
 
 # vocabulary ที่ repo นี้เพิ่มเข้ามาเอง
 #
@@ -46,6 +46,65 @@ vocabulary_added:
     subject_type: record
     record_type: ecosystem_drift
     meaning: กฎ architecture หรือ contract ข้อหนึ่งถูกละเมิด พร้อมทางแก้
+
+# ── leaf ที่ถือข้อความของมนุษย์ (event/v1 semantics 1.3 · devfactory-core RFC-0013)
+#
+# กฎสามข้อของ invariant ใหม่
+#   1. อ่านที่ leaf ไม่ใช่ที่ field ระดับบน — object กับ array เป็นภาชนะ ไม่ใช่ค่า
+#   2. leaf ที่อาจถือข้อความของมนุษย์ ต้องประกาศไว้ · ที่เหลือต้องเป็น pointer
+#   3. leaf ที่ประกาศ ต้องบอกว่ากติกาการเก็บ/ลบอยู่ชั้นไหน
+#
+# conformance/payload_check.py guarantee ข้อ 9 บังคับข้อ 1 กับ 2 ทุกรอบ —
+# leaf ที่เป็นข้อความแต่ไม่ได้ประกาศ = conformance ไม่ผ่าน
+text_fields:
+  - path: $.metadata.question
+    event_types: [ADVISORY_ISSUED]
+    written_by: human
+    detail: >-
+      คำถามที่คนพิมพ์เข้ามาทาง /ask — **รับอะไรก็ได้** ทุกวันนี้ระบบส่งค่าคงที่
+      "ทีมเราควรทำอะไรต่อ?" เพราะ emit ยิงเองตามรอบ แต่ endpoint เปิดให้พิมพ์อิสระ
+      ถ้าวันหนึ่งมีคนถามด้วยข้อความที่มีข้อมูลส่วนบุคคล มันจะไหลมาที่นี่
+      · เป็น leaf เดียวของเราที่ควบคุมเนื้อหาไม่ได้
+    retention_layer: >-
+      ลบราย field ไม่ได้ · เราไม่ได้เป็นเจ้าของ store — กติกาการเก็บอยู่ที่ store
+      ของผู้รับ · ฝั่งเราไฟล์ที่เผยแพร่คือ integration/events/sample.jsonl ใน git
+      สาธารณะ (ลบได้ทางเดียวคือเขียนประวัติใหม่ ซึ่งเราถือว่าไม่มีให้ใช้)
+      และ CI artifact ที่หมดอายุเอง 14 วัน
+
+  - path: $.metadata.title
+    event_types: [ADVISORY_ISSUED]
+    written_by: system
+    detail: >-
+      หัวข้อข้อเสนอที่ advisor สร้างจากกฎหรือจาก LLM · ประกอบจาก id ของ component
+      และ contract ที่มาจาก graph ไม่ได้มาจากข้อความที่ใครพิมพ์
+    retention_layer: เหมือน $.metadata.question
+
+  - path: $.metadata.why
+    event_types: [ADVISORY_ISSUED]
+    written_by: system
+    detail: >-
+      เหตุผลของข้อเสนอ · อ้าง id ที่ผ่าน grounding check แล้วเท่านั้น — id ที่ไม่มีใน
+      ecosystem จะถูกรายงานว่าแต่งขึ้น ไม่ถูกปล่อยเงียบ ๆ
+      · **ห้ามมี chain-of-thought** ตาม invariant เดิมของ event/v1 และ guarantee
+      ข้อ 6 ของเราตรวจทุกรอบ
+    retention_layer: เหมือน $.metadata.question
+
+  - path: $.metadata.detail
+    event_types: [ECOSYSTEM_DRIFT_DETECTED]
+    written_by: system
+    detail: ข้อเท็จจริงของ finding ที่ guardian ประกอบจาก id และตัวเลข ไม่มีข้อความที่คนพิมพ์
+    retention_layer: เหมือน $.metadata.question
+
+  - path: $.metadata.fix
+    event_types: [ECOSYSTEM_DRIFT_DETECTED]
+    written_by: human
+    detail: >-
+      ทางแก้ที่คนเขียนไว้ล่วงหน้าใน guardian/rules.yaml — เป็นข้อความคงที่ต่อกฎ
+      ไม่ใช่ข้อความที่พิมพ์ต่อเหตุการณ์ · review ผ่าน PR เหมือนโค้ด
+    retention_layer: เหมือน $.metadata.question
+
+# ไม่มี leaf ไหนของเราถือข้อมูลส่วนบุคคลของ subject — subject ของเราคือ repo,
+# contract, team ไม่ใช่คน · ข้อยกเว้นเดียวที่เป็นไปได้คือ $.metadata.question ข้างบน
 
 # ช่องว่างที่ยังเหลือ — บันทึกไว้ให้เห็นโดยไม่ต้องมาถาม
 # (รูปแบบเดียวกับที่ devfactory-core และ care-agent-platform ทำ)
