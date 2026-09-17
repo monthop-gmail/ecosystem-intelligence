@@ -59,4 +59,7 @@ def test_ข้อมูลตรงกับ_yaml(loaded_db):
         assert n == len(doc["components"])
         row = fetch_one(c, "SELECT * FROM conformance WHERE component_id = 'devfactory-core'")
         assert row["status"] == "passing"
-        assert row["pinned_commit"].startswith("3a01ab9")
+        # เทียบกับ ecosystem.yaml ไม่ใช่กับ SHA ที่ฝังไว้ — ทีมอื่น re-pin เมื่อไหร่
+        # เทสต์ที่ฝังค่าจะแดงทั้งที่ไม่มีอะไรผิด (เกิดขึ้นแล้วเมื่อ 17 ก.ย.)
+        want = next(x for x in doc["components"] if x["id"] == "devfactory-core")
+        assert row["pinned_commit"] == want["conformance"]["pinned_commit"]

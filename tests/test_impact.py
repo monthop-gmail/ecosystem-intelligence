@@ -172,7 +172,11 @@ def test_ร่าง_issue_ไม่ได้เปิดให้จริง(
     r = impact.cross_team(conn, "execution/v1", level="breaking")
     draft = r["draft_issues"][0]
     assert draft["repository"] == "devfactory-core"
-    assert "3a01ab9" in draft["body"], "ต้องบอกว่า pin อยู่ที่ commit ไหน"
+    # อ่าน pin จาก graph ไม่ใช่ฝัง SHA ไว้ — ทีมอื่น re-pin ได้ตลอด
+    # เทสต์ที่ฝัง SHA จะแดงทุกครั้งที่เขา re-pin ทั้งที่ไม่มีอะไรผิด (เกิดแล้ว 17 ก.ย.)
+    consumers = impact.contract_change(conn, "execution/v1", "breaking")["consumers"]
+    pin = next(c["pinned_commit"] for c in consumers if c["component"] == "devfactory-core")
+    assert pin[:12] in draft["body"], "ต้องบอกว่า pin อยู่ที่ commit ไหน"
     assert "ยังไม่ได้เปิด issue ให้" in draft["body"]
 
 

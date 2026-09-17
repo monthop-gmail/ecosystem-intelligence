@@ -38,7 +38,7 @@ def proposals(conn, *, gh: GitHubClient | None = None) -> list[dict[str, Any]]:
         SELECT r.id, r.does_exist, r.manifest, r.default_branch, r.visibility,
                c.id AS component, c.status, c.owner,
                cf.manifest AS conf_manifest, cf.status AS conf_status,
-               cf.last_verified,
+               cf.last_verified, cf.pinned_commit,
                COALESCE((SELECT array_agg(contract_id ORDER BY contract_id)
                            FROM component_contracts
                           WHERE component_id = c.id AND relation = 'consumes'), '{}') AS consumes
@@ -99,6 +99,16 @@ def proposals(conn, *, gh: GitHubClient | None = None) -> list[dict[str, Any]]:
                 "detail": f"manifest pin {', '.join(real) or '—'} "
                           f"แต่ ecosystem.yaml เขียน {', '.join(declared) or '—'}",
                 "suggest": f"components[{r['component']}].consumes: [{', '.join(real)}]",
+            })
+
+        # 3.5 เขา re-pin ไปแล้วแต่เราไม่รู้
+        their_pin = actual.get("pinned_contracts_commit")
+        if their_pin and r["conf_manifest"] and str(their_pin) != (r["pinned_commit"] or ""):
+            out.append({
+                "kind": "pin-changed", "subject": r["component"] or r["id"],
+                "detail": f"manifest pin {str(their_pin)[:20]}… "
+                          f"แต่ ecosystem.yaml เขียน {(r['pinned_commit'] or '—')[:20]}…",
+                "suggest": f"components[{r['component']}].conformance.pinned_commit: {their_pin}",
             })
 
         # 4. conformance ถูกตรวจใหม่แล้ว

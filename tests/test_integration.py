@@ -374,10 +374,18 @@ def test_pin_ใน_ecosystem_yaml_ตรงกับ_pinned_yaml():
         manifest["pinned_contracts_commit"]
 
 
-def test_ไม่ไปแก้_pin_ของทีมอื่น():
-    """pin ของ component อื่นเป็นของทีมนั้น เราบันทึกตามที่เขาประกาศ ไม่ใช่ตั้งเอง"""
+def test_pin_ของทีมอื่นต้องเป็น_sha_เต็ม_ไม่ใช่ค่าที่เราแต่ง():
+    """pin ของ component อื่นเป็นของทีมนั้น เราบันทึกตามที่เขาประกาศ ไม่ใช่ตั้งเอง
+
+    เดิมเทสต์นี้ฝัง SHA ไว้ตรง ๆ แล้วแดงทันทีที่เขา re-pin ทั้งที่ไม่มีอะไรผิด
+    — และแย่กว่านั้น มันกันได้แค่ค่าเดียว ไม่ได้กันการ "แต่งหางของ SHA"
+    ซึ่งเป็นสิ่งที่เกิดขึ้นจริงตอนอัปเดตวันที่ 17 ก.ย. (เห็นแค่ 12 ตัวแล้วเติมเอง)
+
+    ตัวจริงที่ตรวจว่าค่าตรงกับต้นทางคือ guardian rule manifest-drift ซึ่งต้องออกเน็ต
+    """
     eco = yaml.safe_load((ROOT / "ecosystem.yaml").read_text(encoding="utf-8"))
-    theirs = next(c for c in eco["components"] if c["id"] == "devfactory-core")
-    assert theirs["conformance"]["pinned_commit"] == \
-        "3a01ab9d0a68594463382b0ec618dc07ccf6408c", \
-        "pin ของ devfactory-core ต้องเป็นค่าที่เขาประกาศใน manifest ของเขา"
+    for c in eco["components"]:
+        pin = c["conformance"].get("pinned_commit")
+        if pin:
+            assert re.fullmatch(r"[0-9a-f]{40}", pin), \
+                f"{c['id']}: pinned_commit ต้องเป็น SHA เต็ม 40 ตัว ไม่ใช่ {pin!r}"

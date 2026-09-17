@@ -320,3 +320,58 @@ def test_contract_ที่_plane_จองไว้ห้ามบอกว่�
         conn, rules["contract-without-consumer"], gh=NoRefGH())}
     assert found["mcp/v1"]["closable"] is False
     assert "tools" in found["mcp/v1"]["detail"]
+
+
+def test_manifest_drift_จับ_pin_ที่เปลี่ยน(conn, rules):
+    """devfactory-core re-pin เมื่อ 17 ก.ย. แล้วเราไม่รู้ 7 วัน เพราะ check เดิม
+    ดูแค่รายการ contract ไม่ได้ดู commit ที่เขา pin"""
+    import base64
+
+    import yaml
+
+    class FakeGH:
+        owner = "monthop-gmail"
+
+        def api(self, path, **kw):
+            body = yaml.safe_dump({
+                "contracts": ["approval/v1", "error/v1", "event/v1",
+                              "execution/v1", "identity/v1", "policy/v1"],
+                "pinned_contracts_commit": "0" * 40,
+                "conformance": {"status": "passing", "last_verified": "2026-09-17"},
+            })
+            return {"content": base64.b64encode(body.encode()).decode()}
+
+    found = [f for f in checks.manifest_drift(conn, rules["manifest-drift"], gh=FakeGH())
+             if f["subject"] == "devfactory-core"]
+    assert found, "pin ที่ต่างกันต้องถูกจับ"
+    assert "pin commit" in found[0]["detail"]
+
+
+def test_ข้อความ_pin_ต้องแยกออกว่าต่างกันตรงไหน(conn, rules):
+    """เดิมตัดแค่ 12 ตัว — SHA สองอันที่ prefix เหมือนกันจะดูเหมือนกันเป๊ะ
+    แล้วคนอ่านจะคิดว่า check พัง ทั้งที่มันถูก"""
+    import base64
+
+    import yaml
+
+    same_prefix = "a5138dfe8f15" + "1" * 28
+
+    class FakeGH:
+        owner = "monthop-gmail"
+
+        def api(self, path, **kw):
+            body = yaml.safe_dump({
+                "contracts": ["approval/v1", "error/v1", "event/v1",
+                              "execution/v1", "identity/v1", "policy/v1"],
+                "pinned_contracts_commit": same_prefix,
+                "conformance": {"status": "passing", "last_verified": "2026-09-17"},
+            })
+            return {"content": base64.b64encode(body.encode()).decode()}
+
+    found = [f for f in checks.manifest_drift(conn, rules["manifest-drift"], gh=FakeGH())
+             if f["subject"] == "devfactory-core" and "pin commit" in f["detail"]]
+    assert found
+    a, b = found[0]["manifest_pin"], found[0]["declared_pin"]
+    assert a != b
+    shown = found[0]["detail"]
+    assert shown.count(a[:20]) + shown.count(b[:20]) >= 2 or a[:20] != b[:20]

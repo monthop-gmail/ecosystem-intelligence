@@ -290,7 +290,7 @@ def manifest_drift(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
     """
     gh = gh or GitHubClient()
     rows = fetch_all(conn, """
-        SELECT c.id AS component, c.repository, cf.manifest,
+        SELECT c.id AS component, c.repository, cf.manifest, cf.pinned_commit,
                COALESCE((SELECT array_agg(contract_id ORDER BY contract_id)
                            FROM component_contracts
                           WHERE component_id = c.id AND relation = 'consumes'), '{}') AS declared
@@ -311,6 +311,16 @@ def manifest_drift(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
                                 f"อ่าน {r['manifest']} ไม่ได้: {str(e)[:120]}",
                                 skipped=True))
             continue
+
+        # commit ที่เขา pin ก็เป็นข้อเท็จจริงของเขา ไม่ใช่ค่าที่เราตั้งเอง
+        # devfactory-core re-pin เมื่อ 17 ก.ย. แล้วเราไม่รู้ 7 วัน เพราะ check นี้
+        # ดูแค่รายการ contract ไม่ได้ดู commit
+        their_pin = actual_doc.get("pinned_contracts_commit")
+        if their_pin and r["pinned_commit"] and str(their_pin) != r["pinned_commit"]:
+            out.append(_finding(rule, r["component"],
+                                f"manifest pin commit {str(their_pin)[:20]}… "
+                                f"แต่ ecosystem.yaml เขียน {r['pinned_commit'][:20]}…",
+                                manifest_pin=str(their_pin), declared_pin=r["pinned_commit"]))
 
         actual = sorted(actual_doc.get("contracts") or [])
         declared = sorted(r["declared"])
