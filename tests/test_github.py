@@ -216,3 +216,88 @@ def test_client_อ่าน_status_จากข้อความของ_gh(m
     with pytest.raises(mod.GitHubError) as e:
         c.api("repos/x/y")
     assert e.value.status == 404 and e.value.not_found
+
+
+# ── registry: แยกสมาชิกจริงออกจาก repo ทั่วไปในบัญชี ───────────────────
+def test_candidate_ต้องมีหลักฐาน_ไม่ใช่เดาจากชื่อ(conn):
+    """บัญชีนี้มี repo 229 ตัว การกองรวมแล้วพิมพ์ 12 ชื่อแรกทำให้สมาชิกจริงหายไป
+    — botforge กับ agent-builder-dsh-poc conform มาตั้งแต่ ส.ค./ก.ย. โดยเราไม่เห็น"""
+    import base64
+
+    from ecosystem_graph import registry
+    from ecosystem_graph.github.client import GitHubError
+
+    consumers_md = (
+        "| [`botforge`](https://github.com/monthop-gmail/botforge) | ok | `passing` "
+        "| `error/v1` `event/v1` | 2026-08-23 |\n"
+    )
+
+    class FakeGH:
+        owner = "monthop-gmail"
+
+        def api(self, path, **kw):
+            if "consumers.md" in path:
+                return {"content": base64.b64encode(consumers_md.encode()).decode()}
+            raise GitHubError("no manifest", status=404)
+
+    actual = {"botforge": {}, "random-side-project": {}, "another-one": {}}
+    found = registry._candidates(FakeGH(), conn, actual, declared={})
+    assert [c["repository"] for c in found] == ["botforge"]
+    assert "ทะเบียน consumer" in found[0]["signals"][0]
+
+
+def test_manifest_ที่อยู่คนละ_branch_ต้องเจอ(conn):
+    """botforge วาง platform-contract.yaml ไว้ที่ branch v2 — ตรวจแค่ branch หลัก
+    แล้วสรุปว่า 'ไม่มี' คือการรายงานผิด"""
+    import base64
+
+    from ecosystem_graph import registry
+    from ecosystem_graph.github.client import GitHubError
+
+    class FakeGH:
+        owner = "monthop-gmail"
+
+        def api(self, path, **kw):
+            if "consumers.md" in path:
+                md = ("| [`botforge`](https://github.com/monthop-gmail/botforge) |\n")
+                return {"content": base64.b64encode(md.encode()).decode()}
+            if "platform-contract.yaml" in path and "ref=v2" in path:
+                return {"name": "platform-contract.yaml"}
+            raise GitHubError("not found", status=404)
+
+    found = registry._candidates(FakeGH(), conn, {"botforge": {}}, declared={})
+    assert any("v2" in s for s in found[0]["signals"])
+
+
+def test_ดึง_repo_ชนเพดานต้องบอก(monkeypatch, capsys):
+    """เดิมตั้ง limit 200 ทั้งที่บัญชีมี 229 — ตัดทิ้ง 29 ตัวเงียบ ๆ
+    แล้วรายงานพิมพ์ว่า '200 repo ในบัญชี' เหมือนเป็นจำนวนจริง"""
+    from ecosystem_graph import registry
+
+    monkeypatch.setattr(registry, "_gh_json",
+                        lambda args: [{"name": f"r{i}"} for i in range(5)])
+    registry.github_repos(limit=5)
+    assert "ชนเพดาน" in capsys.readouterr().err
+
+
+def test_consumer_registry_drift_อ่าน_pin_จากคอลัมน์ที่ถูก(conn):
+    """ดึง pin จากทั้งแถวจะได้ contract ที่คอลัมน์หมายเหตุพูดถึงมาด้วย
+    — botforge เคยขึ้น channel-event/v1 ทั้งที่ pin แค่ error/v1 event/v1"""
+    import base64
+
+    from ecosystem_graph.guardian import checks
+
+    md = ("| [`newcomer`](https://github.com/monthop-gmail/newcomer) | ok | `passing` "
+          "| `error/v1` `event/v1` | 2026-08-23 | หมายเหตุพูดถึง `channel-event/v1` |\n")
+
+    class FakeGH:
+        owner = "monthop-gmail"
+
+        def api(self, path, **kw):
+            return {"content": base64.b64encode(md.encode()).decode()}
+
+    found = checks.consumer_registry_drift(
+        conn, checks.load_rules()["consumer-registry-drift"], gh=FakeGH())
+    row = next(f for f in found if f["subject"] == "newcomer")
+    assert row["pins"] == ["error/v1", "event/v1"]
+    assert "channel-event/v1" not in row["detail"]

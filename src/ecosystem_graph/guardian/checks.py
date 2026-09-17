@@ -32,7 +32,7 @@ CONFORMANCE_MAX_AGE_DAYS = 90
 
 # check ที่ต้องอ่านจาก repo อื่น — ข้ามได้ แต่ต้องข้ามอย่างมีเสียง
 REMOTE_CHECKS = {"manifest_drift", "semantics_version_drift", "pinned_contract_stale",
-                 "contracts_without_consumer"}
+                 "contracts_without_consumer", "consumer_registry_drift"}
 
 
 def load_rules() -> dict[str, dict[str, Any]]:
@@ -347,6 +347,52 @@ def _fetch_yaml(gh: GitHubClient, repo: str, path: str, ref: str | None = None) 
     return yaml.safe_load(base64.b64decode(blob["content"]).decode("utf-8")) or {}
 
 
+CONSUMER_ROW = re.compile(r"^\|\s*\[`([a-z0-9][a-z0-9-]*)`\]\([^)]*\)\s*\|(.*)$")
+
+
+def consumer_registry_drift(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
+    """เทียบแผนที่เรากับทะเบียนตัวจริงของ agent-platform
+
+    ทะเบียนนั้นเป็นแหล่งความจริงว่าใคร pin contract อะไร (ADR-0006) — แผนที่ของเรา
+    ที่เป็นเซตย่อยทำให้คำตอบทุกข้อถูกเฉพาะในโลกที่เล็กกว่าจริง
+    """
+    import base64
+
+    gh = gh or GitHubClient()
+    try:
+        blob = gh.api(f"repos/{gh.owner}/agent-platform/contents/"
+                      f"architecture/consumers.md")
+        text = base64.b64decode(blob["content"]).decode("utf-8", "replace")
+    except Exception as e:  # noqa: BLE001
+        return [_finding(rule, "agent-platform",
+                         f"อ่าน consumers.md ไม่ได้: {str(e)[:120]}", skipped=True)]
+
+    listed: dict[str, list[str]] = {}
+    for line in text.splitlines():
+        m = CONSUMER_ROW.match(line.strip())
+        if not m:
+            continue
+        # คอลัมน์ที่ 4 คือ pin — ดึงจากทั้งแถวจะได้ contract ที่คอลัมน์หมายเหตุพูดถึงมาด้วย
+        # (botforge เคยขึ้น channel-event/v1 ทั้งที่ pin แค่ error/v1 event/v1)
+        cols = [c.strip() for c in line.strip().strip("|").split("|")]
+        name = m.group(1)
+        pin_col = cols[3] if len(cols) > 3 else ""
+        listed[name] = sorted(set(re.findall(r"`([a-z0-9-]+/v\d+)`", pin_col)))
+
+    ours = {r["id"] for r in fetch_all(conn, "SELECT id FROM repositories")}
+    out = []
+    for name, pins in sorted(listed.items()):
+        if name in ours:
+            continue
+        out.append(_finding(
+            rule, name,
+            f"อยู่ในทะเบียนของ agent-platform"
+            + (f" และ pin {', '.join(pins)}" if pins else " แต่ยังไม่ pin อะไร")
+            + " — แผนที่เราไม่มี component นี้",
+            pins=pins))
+    return out
+
+
 def semantics_version_drift(conn, rule, *, gh: GitHubClient | None = None) -> list[dict]:
     """เทียบ semantics_version ที่ contract pin ไว้ กับต้นทางที่เป็นเจ้าของความหมาย
 
@@ -418,6 +464,7 @@ def pinned_contract_stale(conn, rule, *, gh: GitHubClient | None = None) -> list
 # ─────────────────────────────────────────────────────────────────────────
 CHECKS: dict[str, Callable] = {
     "blocking_past_backstop": blocking_past_backstop,
+    "consumer_registry_drift": consumer_registry_drift,
     "semantics_version_drift": semantics_version_drift,
     "pinned_contract_stale": pinned_contract_stale,
     "orphan_components": orphan_components,

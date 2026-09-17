@@ -11,10 +11,12 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from typing import Any
 
 from .db import fetch_all
+from .github.client import GitHubClient, GitHubError
 
 DEFAULT_OWNER = "monthop-gmail"
 
@@ -41,12 +43,20 @@ def _gh_json(args: list[str]) -> Any:
     return json.loads(proc.stdout) if proc.stdout.strip() else None
 
 
-def github_repos(owner: str = DEFAULT_OWNER, limit: int = 200) -> dict[str, dict] | None:
-    """repo ทั้งหมดของ owner — คืน None ถ้าเรียก gh ไม่ได้ (ออฟไลน์ / ไม่ได้ล็อกอิน)"""
+def github_repos(owner: str = DEFAULT_OWNER, limit: int = 1000) -> dict[str, dict] | None:
+    """repo ทั้งหมดของ owner — คืน None ถ้าเรียก gh ไม่ได้ (ออฟไลน์ / ไม่ได้ล็อกอิน)
+
+    limit เดิมเป็น 200 ทั้งที่บัญชีนี้มี 229 repo — **ตัดทิ้ง 29 ตัวเงียบ ๆ**
+    และรายงานก็พิมพ์ว่า "200 repo ในบัญชี" เหมือนเป็นจำนวนจริง
+    ถ้าชนเพดานจะบอก ไม่ใช่ปล่อยให้เข้าใจว่าครบ
+    """
     data = _gh_json(["repo", "list", owner, "--limit", str(limit), "--json",
                      "name,visibility,defaultBranchRef,isArchived,isFork"])
     if data is None:
         return None
+    if len(data) >= limit:
+        print(f"⚠️  ดึง repo ได้ {len(data)} ตัวซึ่งชนเพดาน {limit} — อาจมีมากกว่านี้",
+              file=__import__("sys").stderr)
     return {
         r["name"]: {
             "visibility": (r.get("visibility") or "").lower(),
@@ -58,13 +68,80 @@ def github_repos(owner: str = DEFAULT_OWNER, limit: int = 200) -> dict[str, dict
     }
 
 
+def _candidates(gh: GitHubClient, conn, actual: dict[str, dict],
+                declared: dict[str, Any]) -> list[dict[str, Any]]:
+    """repo ที่ไม่อยู่ในทะเบียนเรา **แต่มีหลักฐานว่าเกี่ยวกับ ecosystem นี้**
+
+    เดิมเราทิ้งทุกตัวที่ไม่อยู่ในทะเบียนลงกองเดียวกันแล้วพิมพ์ 12 ชื่อแรก
+    บัญชีนี้มี repo 229 ตัว กองนั้นจึงกลบสมาชิกจริงที่ปนอยู่ — `botforge` กับ
+    `agent-builder-dsh-poc` conform มาตั้งแต่ ส.ค./ก.ย. โดยที่เราไม่เห็น
+
+    หลักฐานที่รับ ไม่ใช่การเดาจากชื่อหรือคำอธิบาย
+      registry  — อยู่ในทะเบียน consumer ของ agent-platform (แหล่งความจริงตาม ADR-0006)
+      manifest  — มี platform-contract.yaml ของตัวเอง
+      watchlist — เราบันทึกไว้เองว่าเจอที่อื่น พร้อมที่มา
+    """
+    import base64
+
+    signals: dict[str, list[str]] = {}
+
+    try:
+        blob = gh.api(f"repos/{gh.owner}/agent-platform/contents/"
+                      f"architecture/consumers.md")
+        text = base64.b64decode(blob["content"]).decode("utf-8", "replace")
+        for name in set(re.findall(r"\[`([a-z0-9][a-z0-9-]*)`\]\(https://github\.com/"
+                                   + re.escape(gh.owner) + r"/", text)):
+            signals.setdefault(name, []).append("อยู่ในทะเบียน consumer ของ agent-platform")
+    except Exception:  # noqa: BLE001
+        pass
+
+    for w in _watchlist():
+        signals.setdefault(w["id"], []).append(f"เราบันทึกไว้เอง — {w.get('why', 'ไม่ระบุที่มา')}")
+
+    # ตรวจ manifest เฉพาะตัวที่มีสัญญาณอื่นอยู่แล้ว — 229 repo × 1 call ไม่คุ้ม
+    out = []
+    for name, why in sorted(signals.items()):
+        if name in declared or name not in actual:
+            continue
+        # manifest ไม่จำเป็นต้องอยู่ branch หลัก — botforge วางไว้ที่ v2
+        # ตรวจแค่ default branch แล้วสรุปว่า "ไม่มี" คือการรายงานผิด
+        found_on = None
+        for ref in (None, "v2", "develop"):
+            try:
+                path = f"repos/{gh.owner}/{name}/contents/platform-contract.yaml"
+                gh.api(path + (f"?ref={ref}" if ref else ""))
+                found_on = ref or "branch หลัก"
+                break
+            except GitHubError:
+                continue
+        if found_on:
+            why = why + [f"มี platform-contract.yaml ({found_on})"]
+        out.append({"repository": name, "signals": why})
+    return out
+
+
+def _watchlist() -> list[dict[str, Any]]:
+    """ชื่อที่เราได้ยินจากที่อื่น (เช่น โต๊ะ ai-collab) — บันทึกไว้พร้อมที่มา
+    จะได้ไม่ต้องไปค้นใหม่ทุกครั้ง"""
+    import yaml
+
+    from .config import ROOT
+
+    path = ROOT / "ecosystem.yaml"
+    if not path.exists():
+        return []
+    doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return doc.get("watchlist") or []
+
+
 def reconcile(conn, owner: str = DEFAULT_OWNER) -> dict[str, Any]:
     """เทียบทะเบียนกับ GitHub จริง
 
-    drift  = ปัญหาที่ต้องแก้
-    unregistered = repo ที่มีอยู่จริงแต่ไม่อยู่ในทะเบียน (ข้อมูล ไม่ใช่ error —
-                   ไม่ใช่ทุก repo ในบัญชีเป็นส่วนหนึ่งของ ecosystem นี้)
+    drift      = ปัญหาที่ต้องแก้
+    candidates = repo ที่มีหลักฐานว่าเกี่ยวกับ ecosystem แต่ยังไม่อยู่ในทะเบียน
+    unrelated  = จำนวนที่เหลือ — ไม่ใช่ทุก repo ในบัญชีเป็นส่วนหนึ่งของ ecosystem นี้
     """
+    gh = GitHubClient(owner)
     actual = github_repos(owner)
     if actual is None:
         return {"available": False, "reason": "เรียก gh ไม่ได้ — ยังไม่ได้ล็อกอินหรือออฟไลน์"}
@@ -92,8 +169,11 @@ def reconcile(conn, owner: str = DEFAULT_OWNER) -> dict[str, Any]:
                 drift.append({"repository": rid, "kind": "archived",
                               "detail": "ถูก archive บน GitHub แล้ว"})
 
-    unregistered = sorted(name for name, meta in actual.items()
-                          if name not in declared and not meta["fork"] and not meta["archived"])
+    candidates = _candidates(gh, conn, actual, declared)
+    cand_names = {c["repository"] for c in candidates}
+    unrelated = sorted(name for name, meta in actual.items()
+                       if name not in declared and name not in cand_names
+                       and not meta["fork"] and not meta["archived"])
 
     orphan_repos = sorted(rid for rid, row in declared.items() if not row["components"])
 
@@ -103,7 +183,9 @@ def reconcile(conn, owner: str = DEFAULT_OWNER) -> dict[str, Any]:
         "declared": len(declared),
         "on_github": len(actual),
         "drift": drift,
-        "unregistered": unregistered,
+        "candidates": candidates,
+        "unrelated_count": len(unrelated),
+        "unrelated": unrelated,
         "repositories_without_component": orphan_repos,
     }
 
@@ -141,16 +223,24 @@ def main(argv: list[str] | None = None) -> int:
     if report["repositories_without_component"]:
         print("\n  ทะเบียนที่ยังไม่มี component ผูกอยู่: "
               + ", ".join(report["repositories_without_component"]))
-    if report["unregistered"]:
-        names = report["unregistered"]
-        shown = names if show_all else names[:12]
-        print(f"\n  repo ในบัญชีที่ไม่อยู่ในทะเบียน: {len(names)} ตัว")
-        print("    " + ", ".join(shown) + ("" if show_all or len(names) <= 12
-                                           else f", … อีก {len(names) - 12} (--all เพื่อดูครบ)"))
-        print("    บัญชีนี้มี repo เยอะและส่วนใหญ่ไม่เกี่ยวกับ ecosystem นี้ "
-              "— ทะเบียนรับเฉพาะ repo ที่มี component")
+    if report["candidates"]:
+        print(f"\n  🔴 น่าจะเป็นสมาชิก ecosystem แต่ยังไม่อยู่ในทะเบียน "
+              f"({len(report['candidates'])})")
+        for c in report["candidates"]:
+            print(f"    · {c['repository']}")
+            for sig in c["signals"]:
+                print(f"        {sig}")
+    else:
+        print("\n  ✓ ไม่มี repo ที่มีหลักฐานว่าเกี่ยวแต่ตกทะเบียน")
 
-    return 1 if report["drift"] else 0
+    print(f"\n  repo อื่นในบัญชี: {report['unrelated_count']} ตัว "
+          f"— ไม่มีหลักฐานว่าเกี่ยวกับ ecosystem นี้")
+    if show_all and report["unrelated"]:
+        print("    " + ", ".join(report["unrelated"]))
+    elif report["unrelated"]:
+        print("    (--all เพื่อดูรายชื่อ)")
+
+    return 1 if (report["drift"] or report["candidates"]) else 0
 
 
 if __name__ == "__main__":

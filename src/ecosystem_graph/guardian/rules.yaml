@@ -121,6 +121,17 @@ rules:
     fix: ย้ายไป expected_contracts จนกว่าจะมี platform-contract.yaml จริง
     source: docs/entities.md §2.1.1
 
+  - id: consumer-registry-drift
+    severity: error
+    check: consumer_registry_drift
+    title: ทะเบียน consumer ของ agent-platform มีคนที่แผนที่เราไม่รู้จัก
+    why: >-
+      architecture/consumers.md เป็นทะเบียนตัวจริงว่าใคร pin contract อะไร
+      ถ้าแผนที่เราเป็นเซตย่อยของมัน คำตอบทุกข้อที่เราให้จะถูกเฉพาะในโลกที่เล็กกว่าจริง
+      — เคยทำให้เรารายงานว่า agent/v1 กับ profile/v1 ไม่มีใครใช้ ทั้งที่มีคน pin อยู่
+    fix: เพิ่ม component ที่ขาดลง ecosystem.yaml พร้อมทีมเจ้าของ แล้วรัน make import
+    source: agent-platform/architecture/consumers.md
+
   - id: semantics-version-drift
     severity: error
     check: semantics_version_drift
