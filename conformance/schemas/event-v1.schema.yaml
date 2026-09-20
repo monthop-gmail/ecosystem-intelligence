@@ -11,12 +11,13 @@ description: >-
 derived_from:
   repo: monthop-gmail/devfactory-core
   manifest: contract-semantics.yaml
-  semantics_version: "1.3"
+  semantics_version: "1.5"
   rfcs:
     - rfcs/0003-audit-event-log-schema.md
     - rfcs/0008-external-event-intake.md
     - rfcs/0012-terminal-closing-record.md
     - rfcs/0013-audit-fields-that-hold-human-text.md
+    - rfcs/0017-the-leaf-rule-is-not-a-property-of-one-contract.md
     - rfcs/0009-vocabulary-extension.md
   license: MIT
   # ตรวจ drift โดยเทียบ semantics_version ไม่ใช่ SHA ของไฟล์ RFC
@@ -175,7 +176,23 @@ properties:
     properties:
       from: { type: string }
       to: { type: string }
-      reason: { type: string }
+      reason:
+        type: string
+        description: >-
+          📣 **leaf ที่ประกาศแล้วว่าถือข้อความของคนได้** — invariant ของ
+          `semantics_version` `1.3` ([RFC-0013](https://github.com/monthop-gmail/devfactory-core/blob/main/rfcs/0013-audit-fields-that-hold-human-text.md)
+          · [ADR-0034](../../../decisions/0034-semantics-1-5-leaf-declaration.md))
+
+          เหตุที่เป็นตัวชี้ไม่ได้ — RFC-0001 ของต้นทางบังคับให้ `FAILED` `CANCELLED`
+          `TIMED_OUT` ตอบได้ว่าหยุดเพราะอะไร และไม่มีตารางโดเมนที่เก็บประโยคนั้นไว้ให้ชี้ไปหา
+
+          🔒 **ผู้ผลิตต้องประกาศว่ากติกาการเก็บและการลบของ leaf นี้อยู่ชั้นไหน**
+          — `agent-platform` ประกาศแทนไม่ได้เพราะไม่ได้เป็นผู้เก็บ event ของใคร
+          · ลบรายฟิลด์ไม่ได้โดยนิยาม เพราะ `event` เป็น append-only
+          ผู้ผลิตจึงต้องบอกว่าใช้อะไรแทน ไม่ใช่เว้นว่างไว้
+
+          ⚠️ ต่างจาก `approval/v1` `reason` ตรงที่ตัวนี้ **optional** — ผู้ผลิตที่เห็นว่า
+          ไม่คุ้มค่าเก็บ เลิกส่งได้ · อีกใบไม่มีทางออกนั้น
   policy_result:
     $ref: https://schemas.agent-platform.internal/policy/v1/policy-decision.schema.yaml#/$defs/DecisionSummary
     description: >-
@@ -223,6 +240,17 @@ guarantees:
     - "external event ต้องคง source ไว้ให้รู้ตลอดไปว่ามาจากข้างนอก"
     - "ห้ามเก็บ private reasoning / chain-of-thought เป็น audit record"
     - "trace ที่ไม่มี step ย่อยถือว่าถูกต้อง — execution ที่ไม่มี step event ไม่ได้แปลว่าไม่ได้ทำอะไร"
+    - "**leaf ที่อาจถือข้อความของคนต้องถูกประกาศไว้ในสัญญา ที่เหลือทุก leaf เป็นตัวชี้**
+       (id · code · ตัวเลข · timestamp · boolean · enum) — RFC-0013 · RFC-0017
+       (1) กฎนี้ใช้ที่ระดับ **leaf** ไม่ใช่ field ระดับบนสุด — object กับ array เป็นภาชนะไม่ใช่ค่า
+       ให้ไล่ลงไปจนถึงค่าที่ไม่มีลูก · อ่านที่ระดับบนสุดจะไม่มี event ใบไหนในโลกผ่าน
+       เพราะ `actor` `source` `transition` `policy_result` `consent` เป็น object ทั้งหมด
+       (2) leaf ที่อาจถือข้อความของคนต้องประกาศ
+       (3) leaf ที่ประกาศแล้วต้องบอกว่ากฎการเก็บและการลบอยู่ชั้นไหน — store ที่ append-only
+       ลบรายฟิลด์ไม่ได้ ต้องบอกว่าทำอะไรแทน
+       ⚠️ **บังคับได้เฉพาะฝั่งผู้ผลิต** — validator บอกได้ว่ามี key อะไร บอกไม่ได้ว่าใครพิมพ์ค่านั้น
+       🔒 RFC-0017 — กฎนี้ **ไม่ใช่คุณสมบัติของ `event/v1`** แต่เป็นคุณสมบัติของข้อความที่
+       ลบไม่ได้เมื่อเขียนลงไปแล้ว จึงผูกทุกสัญญาที่ semantics เป็นของ devfactory-core"
 
 platform_rules:
   description: กฎระดับ schema ที่ `agent-platform` เพิ่มเอง — ไม่ใช่ semantics
@@ -233,3 +261,9 @@ platform_rules:
        ผู้ผลิตที่ใช้ transaction ที่ rollback ได้จะสร้างช่องว่างโดยไม่มีใครทำผิด"
     - "event ที่ไม่มี sequence เรียงด้วย occurred_at อย่างเดียว — ห้ามถือว่าอยู่ก่อนหรือหลัง
        ใบที่มี sequence โดยอัตโนมัติ (กันกรณี producer เก่ากับใหม่เขียนปนกันระหว่าง migrate)"
+    - "การประกาศ leaf ตาม guarantee ข้อสุดท้าย **ต้องเป็นสิ่งที่ตัว conformance check
+       ของผู้ผลิตอ่านจริง** ไม่ใช่เอกสารที่วางไว้ข้าง ๆ — รายการที่แยกจากตัวตรวจจะ drift
+       ซึ่งเป็นเหตุผลเดียวกับที่ RFC-0013 ปฏิเสธทะเบียนคีย์กลาง"
+    - "`metadata` เป็น open object — คีย์ที่ผู้ผลิตใส่เองอยู่ใต้กฎ leaf ข้อเดียวกัน
+       **ไม่ได้ยกเว้นเพราะสัญญาไม่ได้ตั้งชื่อคีย์เหล่านั้น** · ข้อห้าม private reasoning
+       ที่ `metadata` มีอยู่แล้วเป็นคนละข้อและไม่ครอบข้อความของคนที่ไม่ใช่ของโมเดล"

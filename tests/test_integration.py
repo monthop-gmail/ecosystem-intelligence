@@ -447,3 +447,77 @@ def test_ที่ประกาศไว้ต้องมีอยู่จ�
         produced |= {p for p, _ in pc._leaves(e)}
 
     assert declared <= produced, f"ประกาศไว้แต่ไม่มีจริง: {sorted(declared - produced)}"
+
+
+# ── event_id เป็นคำสัญญา ไม่ใช่พฤติกรรมวันนี้ (devfactory-core#32) ────────
+def test_ถ้อยคำเปลี่ยน_id_ต้องไม่เปลี่ยน(sample_result):
+    """ก่อน 2026-09-20 ข้อนี้แดง — id hash ถ้อยคำ `why` ที่โมเดลเขียน
+
+    ซึ่งแปลว่าโมเดลเรียบเรียงประโยคใหม่ = ปลายทางได้ใบใหม่ทั้งชุด
+    ทั้งที่คำแนะนำเหมือนเดิม · แบบนั้นรับเป็นคำสัญญาให้ใครไม่ได้
+    """
+    import copy
+    changed = copy.deepcopy(sample_result)
+    changed["as_of"] = "2099-01-01"
+    changed["generated_by"] = {"provider": "claude", "model": "claude-opus-5"}
+    for s in changed["answer"]["recommended_next_steps"]:
+        s["why"] = s["why"] + " (เรียบเรียงใหม่)"
+
+    assert ([e["event_id"] for e in events.advisory_events(sample_result)]
+            == [e["event_id"] for e in events.advisory_events(changed)])
+
+
+def test_แก้ข้อหนึ่งต้องไม่ย้าย_id_ของข้ออื่น(sample_result):
+    """เดิม id ของทุกใบ derive จาก correlation ที่ hash ทุกข้อรวมกัน
+
+    ผลคือแก้ข้อ 1 ข้อเดียว id ของข้อ 2 ก็ย้ายตาม ทั้งที่ข้อ 2 ไม่ได้เปลี่ยนอะไร
+    """
+    import copy
+    changed = copy.deepcopy(sample_result)
+    changed["answer"]["recommended_next_steps"][0]["title"] = "อย่างอื่น"
+    before = events.advisory_events(sample_result)
+    after = events.advisory_events(changed)
+    assert before[0]["event_id"] != after[0]["event_id"], "ข้อที่แก้ต้องเปลี่ยน"
+    assert before[1]["event_id"] == after[1]["event_id"], "ข้อที่ไม่ได้แก้ต้องอยู่ที่เดิม"
+
+
+def test_drift_เงื่อนไขเดิมที่ยังไม่ถูกแก้ต้องได้_id_เดิมทุกวัน():
+    """`detail` พาจำนวนวันมาด้วย — ถ้ามันอยู่ใน id เงื่อนไขเดิมจะได้ใบใหม่วันละใบ"""
+    base = {"rule": "conformance-stale", "subject": "care-agent-platform",
+            "severity": "error", "fix": "re-verify"}
+    day1 = events.drift_events([{**base, "detail": "ยืนยันครั้งล่าสุด 91 วันก่อน"}])
+    day2 = events.drift_events([{**base, "detail": "ยืนยันครั้งล่าสุด 92 วันก่อน"}])
+    assert day1[0]["event_id"] == day2[0]["event_id"]
+    other = events.drift_events([{**base, "subject": "devfactory-core",
+                                  "detail": "ยืนยันครั้งล่าสุด 91 วันก่อน"}])
+    assert other[0]["event_id"] != day1[0]["event_id"], "คนละ subject ต้องคนละใบ"
+
+
+def test_คำนวณ_id_ซ้ำจากใบเองได้(sample_result):
+    """คำสัญญาที่ตรวจไม่ได้คือคำอธิบายพฤติกรรม"""
+    for e in events.advisory_events(sample_result):
+        assert events.event_id_for(e) == e["event_id"]
+    for e in events.drift_events([{"rule": "r", "subject": "s", "severity": "error",
+                                   "detail": "d", "fix": "f"}]):
+        assert events.event_id_for(e) == e["event_id"]
+
+
+def test_ใบที่ไม่รู้จักชนิดต้องฟ้อง_ไม่ใช่เดา():
+    with pytest.raises(ValueError, match="ไม่ได้ประกาศตัวตน"):
+        events.event_id_for({"event_type": "SOMETHING_ELSE", "metadata": {}})
+
+
+def test_รายการ_identity_ในใบประกาศต้องตรงกับที่โค้ดใช้จริง():
+    """event/v1 v1.8.0 platform_rules: การประกาศต้องเป็นสิ่งที่ตัวตรวจอ่านจริง
+
+    ใบประกาศที่แยกจากโค้ดจะ drift — เป็นเหตุผลเดียวกับที่ RFC-0013
+    ปฏิเสธทะเบียนคีย์กลาง
+    """
+    manifest = yaml.safe_load((ROOT / "platform-contract.yaml").read_text(encoding="utf-8"))
+    declared = manifest["event_id_derivation"]["identity"]
+    assert manifest["event_id_derivation"]["frozen"] is True
+
+    for event_type, fields in events.EVENT_ID_IDENTITY.items():
+        paths = declared[event_type]
+        assert [p.removeprefix("$.metadata.") for p in paths] == list(fields), \
+            f"{event_type}: ใบประกาศกับโค้ดไม่ตรงกัน"

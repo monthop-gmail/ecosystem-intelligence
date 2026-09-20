@@ -6,7 +6,7 @@
 
 ตรวจสองชั้น
     1. JSON Schema ของ event/v1 ที่ pin ไว้ใน conformance/pinned.yaml
-    2. guarantee ที่ JSON Schema ตรวจไม่ได้ — 8 ข้อด้านล่าง
+    2. guarantee ที่ JSON Schema ตรวจไม่ได้ — 10 ข้อด้านล่าง
 
 รัน: python conformance/payload_check.py
 """
@@ -77,11 +77,25 @@ def collect() -> list[dict]:
                 produced.extend(events.advisory_events(result))
         report = checks.run_all(conn)
         produced.extend(events.drift_events(report["findings"]))
+
+        # ในสถานะปกติ guardian ไม่มี error — ซึ่งแปลว่า ECOSYSTEM_DRIFT_DETECTED
+        # **ไม่เคยถูกตรวจเลยสักใบตั้งแต่เขียนมา** · metadata.detail กับ metadata.fix
+        # ไม่เคยผ่านตาตัวไล่ leaf ของ guarantee 9 ทั้งที่ประกาศไว้ใน text_fields
+        #
+        # นี่คือ "fixture เล็กกว่าสิ่งที่มันแทน" ซึ่งเราสองฝั่งเจอกันมาแล้วคนละครั้ง
+        # (devfactory-core: external metadata เป็น {} · เรา: sequence scope ผิด)
+        #
+        # ไม่เขียน fixture ขึ้นมาใหม่ — ยกป้าย severity ของ finding จริงจากรอบเดียวกัน
+        # ตัวอักษรทุกตัวมาจากกฎจริงกับ subject จริง มีแต่ป้ายที่ยก
+        if not any(e["event_type"] == events.DRIFT_DETECTED for e in produced):
+            lifted = [{**f, "severity": "error"} for f in report["findings"]
+                      if f["severity"] == "warn"]
+            produced.extend(events.drift_events(lifted))
     return produced
 
 
 def guarantees(payloads: list[dict]) -> list[str]:
-    """8 ข้อที่ JSON Schema ตรวจไม่ได้ — มาจาก invariant ที่กำกับไว้ใน event/v1"""
+    """10 ข้อที่ JSON Schema ตรวจไม่ได้ — มาจาก invariant ที่กำกับไว้ใน event/v1"""
     problems: list[str] = []
 
     # 1. event_id ต้องไม่ซ้ำ — audit log ที่มี id ซ้ำคือ log ที่อ้างอิงไม่ได้
@@ -133,6 +147,20 @@ def guarantees(payloads: list[dict]) -> list[str]:
     for path, sample in sorted(undeclared.items()):
         problems.append(f"{path}: ถือข้อความของมนุษย์แต่ไม่ได้ประกาศใน text_fields "
                         f"— {sample!r}")
+
+    # 10. คำนวณ event_id ซ้ำจากใบเองต้องได้ค่าเดิม
+    #
+    # นี่คือสิ่งที่ทำให้ "id ผูกกับเนื้อหา" เป็นคำสัญญาที่ตรวจได้ ไม่ใช่คำอธิบาย
+    # พฤติกรรม — devfactory-core#32 ถามตรง ๆ ว่ามันเป็นอันไหน และ store ของเขา
+    # ปฏิเสธของซ้ำด้วย event_id ถ้า id ขยับตามถ้อยคำ log เขาจะบวมเงียบ ๆ
+    for e in payloads:
+        try:
+            expect = events.event_id_for(e)
+        except ValueError as err:
+            problems.append(f"{e['event_id']}: {err}")
+            continue
+        if expect != e["event_id"]:
+            problems.append(f"{e['event_id']}: คำนวณซ้ำจากใบได้ {expect} — id ไม่ได้ผูกกับตัวตน")
 
     # 8. sequence เรียง event **ภายใน subject เดียวกัน** ไม่ใช่ภายใน correlation
     #
@@ -200,7 +228,7 @@ def main() -> int:
     if schema_errors or problems:
         print(f"\n❌ conformance ไม่ผ่าน — schema {len(schema_errors)} · guarantee {len(problems)}")
         return 1
-    print(f"\n✅ conformance ผ่าน — schema ครบทุกใบ · guarantee 9 ข้อครบ")
+    print(f"\n✅ conformance ผ่าน — schema ครบทุกใบ · guarantee 10 ข้อครบ")
     return 0
 
 

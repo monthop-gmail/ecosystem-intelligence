@@ -10,7 +10,7 @@ apiVersion: ecosystem.intelligence/v0.1
 
 metadata:
   name: monthop-ecosystem
-  updated: 2026-09-18
+  updated: 2026-09-20
   maintained_by: ecosystem-team
   note: >-
     v0.1 ดูแลด้วยมือโดยเจตนา — การ sync อัตโนมัติจาก GitHub เป็นงานของ M3
@@ -278,8 +278,8 @@ components:
     conformance:
       status: passing
       manifest: platform-contract.yaml
-      pinned_commit: a5138dfe8f152756a789c43495e95eb64f82dafb
-      last_verified: 2026-09-17
+      pinned_commit: 7c229955f722a1581ff9a47d6f43b67b81507ff9
+      last_verified: 2026-09-20
       evidence: conformance/payload_check.py — 37 event/รอบ ข้าม 2 tenant รันทุก PR
 
   - id: care-agent-platform
@@ -351,8 +351,8 @@ components:
     conformance:
       status: passing
       manifest: platform-contract.yaml
-      pinned_commit: a5138dfe8f152756a789c43495e95eb64f82dafb
-      last_verified: 2026-09-17
+      pinned_commit: d333cac58ac9e97db9328084c9d3eb89ec9e0d1d
+      last_verified: 2026-09-20
       evidence: >-
         conformance/payload_check.py — ผลิต event จากการรัน advisor ทุกทีมและ guardian
         กับ ecosystem จริง แล้ว validate กับ event/v1 ที่ pin ไว้ พร้อมตรวจ guarantee

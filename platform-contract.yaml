@@ -15,20 +15,21 @@ contracts:
 
 conformance:
   status: passing
-  last_verified: 2026-09-17
+  last_verified: 2026-09-20
 
   # ADR-0006 บังคับ consumer 3 ข้อ
   #   1. manifest         ไฟล์นี้
   #   2. conformance test conformance/payload_check.py — ผลิต payload จากการรัน
   #                       advisor และ guardian กับ ecosystem จริง แล้ว validate
   #                       กับ schema ที่ pin ไว้ · ไม่มี fixture ที่เขียนขึ้นเพื่อให้ผ่าน
-  #                       ตรวจ guarantee ที่ JSON Schema ตรวจไม่ได้อีก 8 ข้อ
+  #                       ตรวจ guarantee ที่ JSON Schema ตรวจไม่ได้อีก 10 ข้อ
   #   3. release gate     job `conformance` ใน .github/workflows/validate.yml รันทุก PR
   #
   # ⚠️ ข้อ 3 จะบล็อกการ merge ได้จริงต่อเมื่อเปิด branch protection แล้วตั้ง check
   #    เป็น required — เป็น repo setting ไม่ใช่สิ่งที่ไฟล์นี้ยืนยันได้
 
-pinned_contracts_commit: a5138dfe8f152756a789c43495e95eb64f82dafb   # conformance/pinned.yaml
+pinned_contracts_commit: d333cac58ac9e97db9328084c9d3eb89ec9e0d1d   # conformance/pinned.yaml
+semantics_version: "1.5"   # event/v1 v1.8.0 · derived_from ของ schema ที่ pin ไว้
 
 # vocabulary ที่ repo นี้เพิ่มเข้ามาเอง
 #
@@ -46,6 +47,64 @@ vocabulary_added:
     subject_type: record
     record_type: ecosystem_drift
     meaning: กฎ architecture หรือ contract ข้อหนึ่งถูกละเมิด พร้อมทางแก้
+
+# ── event_id ผูกกับอะไร — คำสัญญา ไม่ใช่พฤติกรรมวันนี้ (devfactory-core#32)
+#
+# record เดิมได้ `event_id` เดิมเสมอ ข้ามรุ่น ข้ามการรื้อ emitter · สิ่งที่ประกอบเป็น
+# "record เดิม" คือรายการข้างล่างนี้เท่านั้น และ **รายการนี้ frozen** — แก้เมื่อไร
+# เป็น breaking ต้องแจ้ง consumer ตาม ADR-0006 เหมือนแก้ contract
+#
+# ⚠️ ก่อน 2026-09-20 ข้อนี้ยังเป็นคำสัญญาไม่ได้ · id hash ทุกอย่างที่เห็นรวม
+#    `ecosystem_as_of` และถ้อยคำ `why` ที่โมเดลเขียน — แก้ ecosystem.yaml
+#    เรื่องที่ไม่เกี่ยวเลย หรือโมเดลเรียบเรียงประโยคใหม่ **id เปลี่ยนทั้งชุด**
+#    และ `why` ของ advisor มาจาก LLM ซึ่งไม่ deterministic ข้ามรุ่นอยู่แล้ว
+#
+# conformance/payload_check.py guarantee ข้อ 10 คำนวณ id ซ้ำจากใบที่ปล่อยจริง
+# ทุกรอบ — คำสัญญาที่ตรวจไม่ได้คือคำอธิบายพฤติกรรม
+event_id_derivation:
+  promise: ตัวตนเดิม → event_id เดิมเสมอ ข้ามรุ่นและข้ามการเขียน emitter ใหม่
+  frozen: true
+  since: 2026-09-20
+  algorithm: sha256 ของ identity ที่ serialize แบบ sort_keys แล้วตัด 12 ตัวแรก
+  identity:
+    ADVISORY_ISSUED: [$.metadata.team, $.metadata.question, $.metadata.title,
+                      $.metadata.priority, $.metadata.references]
+    ECOSYSTEM_DRIFT_DETECTED: [$.metadata.rule, $.metadata.subject]
+  excluded:
+    - path: [$.metadata.why, $.metadata.detail]
+      reason: >-
+        ถ้อยคำที่โมเดลหรือกฎเขียน — เรียบเรียงใหม่ไม่ใช่ record ใหม่
+        **ผลที่ตามมาที่ผู้รับควรรู้**: ถ้าเราออกข้อเสนอเดิมด้วยถ้อยคำใหม่
+        id จะเท่าเดิม store ที่ปฏิเสธของซ้ำจะเก็บถ้อยคำ*เดิม*ไว้ ไม่ใช่ถ้อยคำใหม่
+    - path: [$.occurred_at, $.metadata.ecosystem_as_of, $.metadata.generated_by,
+             $.metadata.grounded]
+      reason: บอกว่า "ดูเมื่อไร ใครดู" ไม่ได้บอกว่า "เรื่องอะไร"
+    - path: [$.sequence]
+      reason: ตำแหน่งในรอบ ไม่ใช่ตัวตน — แทรกข้อใหม่ต้องไม่ย้าย id ของข้ออื่น
+  known_limit: >-
+    เงื่อนไข drift ที่ถูกแก้แล้วกลับมาเกิดใหม่ จะได้ `event_id` เดิม เพราะเนื้อหา
+    เหมือนกันทุกตัวอักษร · store ที่ idempotent ด้วย event_id จะมองว่าเป็นใบเดิม
+    ไม่ใช่การเกิดซ้ำ — ถ้าผู้รับต้องการให้การเกิดซ้ำมองเห็นได้ ต้องมีตัวแยกเพิ่ม
+    ซึ่งเปลี่ยน semantics ของ store จึงเป็นการตัดสินใจของผู้รับ ไม่ใช่ของเรา
+
+# ── ขอบเขตของตัวไล่ leaf — ตอบ ADR-0034 ข้อ 7
+#
+# "เมื่อ semantics_version ขยับ และขอบเขตของ invariant เปลี่ยน ผู้ผลิตต้องตอบว่า
+#  ตัวตรวจของตัวเองครอบขอบเขตใหม่แล้วหรือยัง"
+#
+# ตอบ: ครอบแล้ว และไม่มีอะไรต้องแก้ · RFC-0017 ขยายกฎ leaf ให้ผูกทุกสัญญาที่
+# semantics เป็นของ devfactory-core ไม่ใช่เฉพาะ event — แต่ repo นี้ผลิต payload
+# รูปเดียวคือ event/v1 (ไม่ได้ pin approval/v1) ขอบเขตใหม่จึงเท่ากับขอบเขตเดิม
+#
+# ⚠️ แต่มีของที่เจอตอนไปตอบ: guarantee 9 **ไม่เคยเห็น ECOSYSTEM_DRIFT_DETECTED
+# สักใบ** เพราะ emitter ปล่อยเฉพาะ finding ระดับ error และ guardian ไม่มี error
+# ในสถานะปกติ — `$.metadata.detail` กับ `$.metadata.fix` ประกาศไว้ตั้งแต่ 17 ก.ย.
+# แต่ไม่มีอะไรยืนยันว่าตรงกับของจริง · แก้แล้วโดยยกป้าย severity ของ finding จริง
+# ไม่ใช่เขียน fixture — collect() ใน payload_check.py
+leaf_scanner_scope:
+  covers: ทุก payload ที่ repo นี้ปล่อย (event/v1 อย่างเดียว)
+  verified_against: [ADVISORY_ISSUED, ECOSYSTEM_DRIFT_DETECTED]
+  answered_for: ADR-0034 ข้อ 7 · semantics 1.5
 
 # ── leaf ที่ถือข้อความของมนุษย์ (event/v1 semantics 1.3 · devfactory-core RFC-0013)
 #
@@ -114,7 +173,7 @@ blocking:
       agent-platform/architecture/consumers.md ยังไม่มีแถวของ repo นี้
       — เป็นการแก้ที่ repo ของเขา เราทำฝ่ายเดียวไม่ได้
     severity: low
-    status: raised
+    status: resolved   # ลงทะเบียนแล้ว · #40 ปิด · เป็น 1 ใน 5 รายที่ conform จริง
     issue: https://github.com/monthop-gmail/agent-platform/issues/40
 
   - id: no-consumer-of-our-events

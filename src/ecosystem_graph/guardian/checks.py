@@ -478,11 +478,29 @@ def pinned_contract_stale(conn, rule, *, gh: GitHubClient | None = None) -> list
     except Exception as e:  # noqa: BLE001
         return [_finding(rule, repo, f"ตรวจ commit ล่าสุดไม่ได้: {str(e)[:100]}", skipped=True)]
 
-    if head and head != pin["commit"]:
+    if not head or head == pin["commit"]:
+        return []
+
+    # "ต่างกัน" ไม่ได้แปลว่า "เก่ากว่า" — pin ที่ tip ของ repo จะต่างจาก commit
+    # ล่าสุดที่แตะ contracts/ แทบทุกครั้ง เพราะ commit อื่นที่ไม่ได้แตะ contracts
+    # ก็ขยับ tip เหมือนกัน · เทียบสายเลือด ไม่ใช่เทียบตัวตน ไม่งั้นกฎนี้เตือนค้าง
+    # ถาวรและกลายเป็นเสียงรบกวนที่คนเลิกอ่าน
+    try:
+        cmp = gh.api(f"repos/{gh.owner}/{repo}/compare/{head}...{pin['commit']}")
+        status = cmp.get("status")
+    except Exception as e:  # noqa: BLE001
         return [_finding(rule, repo,
-                         f"pin ไว้ที่ {pin['commit'][:12]} แต่ contracts/ ขยับไปถึง "
-                         f"{head[:12]} แล้ว", pinned=pin["commit"], head=head)]
-    return []
+                         f"pin {pin['commit'][:12]} ต่างจาก contracts/ ล่าสุด {head[:12]} "
+                         f"— เทียบสายเลือดไม่ได้: {str(e)[:80]}", skipped=True)]
+
+    if status in ("ahead", "identical"):
+        return []   # pin รวม commit ล่าสุดของ contracts/ ไว้แล้ว
+
+    behind = cmp.get("behind_by") or 0
+    return [_finding(rule, repo,
+                     f"pin ไว้ที่ {pin['commit'][:12]} แต่ contracts/ ขยับไปถึง "
+                     f"{head[:12]} แล้ว (ตาม {behind} commit)",
+                     pinned=pin["commit"], head=head, behind_by=behind)]
 
 
 # ─────────────────────────────────────────────────────────────────────────

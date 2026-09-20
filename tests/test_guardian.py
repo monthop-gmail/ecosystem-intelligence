@@ -418,3 +418,33 @@ def test_passing_ที่ไม่มี_pin_ต้องถูกรายง�
     assert with_pin, "ถ้าไม่มีใคร pin เลย ข้อถัดไปพิสูจน์อะไรไม่ได้"
     assert not (flagged & with_pin), "ตัวที่ pin ไว้แล้วต้องไม่ถูกรายงาน"
     assert all(f["severity"] == "warn" for f in found), "เป็นช่องว่างของทีมอื่น ไม่ใช่ error ของเรา"
+
+
+def _stale_gh(head: str, status: str, behind: int = 0):
+    class FakeGH:
+        owner = "monthop-gmail"
+
+        def api(self, path, **kw):
+            if "path=contracts" in path:
+                return [{"sha": head}]
+            if "/compare/" in path:
+                return {"status": status, "behind_by": behind}
+            raise AssertionError(f"ไม่ควรเรียก {path}")
+    return FakeGH()
+
+
+def test_pin_ที่ใหม่กว่า_commit_ล่าสุดของ_contracts_ไม่ใช่ของเก่า(conn, rules):
+    """"ต่างกัน" ไม่ได้แปลว่า "เก่ากว่า"
+
+    pin ที่ tip ของ repo จะต่างจาก commit ล่าสุดที่แตะ contracts/ แทบทุกครั้ง
+    เพราะ commit ที่ไม่ได้แตะ contracts ก็ขยับ tip เหมือนกัน · กฎที่เทียบตัวตน
+    จะเตือนค้างถาวรจนคนเลิกอ่าน (เกิดจริง 20 ก.ย. หลัง re-pin ไป d333cac)
+    """
+    rule = rules["pinned-contract-stale"]
+    ahead = checks.pinned_contract_stale(conn, rule, gh=_stale_gh("f6a5ca038466", "ahead"))
+    assert ahead == [], "pin ที่รวม commit ล่าสุดไว้แล้ว ต้องไม่ถูกเตือน"
+
+    behind = checks.pinned_contract_stale(conn, rule,
+                                          gh=_stale_gh("f6a5ca038466", "behind", behind=3))
+    assert len(behind) == 1, "pin ที่ตามหลังจริง ต้องยังเตือน"
+    assert "3 commit" in behind[0]["detail"]
