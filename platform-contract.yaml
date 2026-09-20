@@ -106,6 +106,68 @@ leaf_scanner_scope:
   verified_against: [ADVISORY_ISSUED, ECOSYSTEM_DRIFT_DETECTED]
   answered_for: ADR-0034 ข้อ 7 · semantics 1.5
 
+# ── ทะเบียนตัวชี้ — leaf ทุกเส้นทางต้องมีคนตัดสินแล้ว (ปิด · fail closed)
+#
+# ที่มา: `botforge` ในโต๊ะกลาง 20 ก.ย. ชี้ว่าการประกาศที่กว้างเกินจะ **กลืน ratchet
+# ของตัวเอง** — ร่างแรกเขาใส่ `$.metadata.*` แล้วเห็นว่า key ใหม่ที่เป็นข้อความของคน
+# จะผ่านเพราะ "ประกาศไว้แล้ว" · `agent-platform` เรียกรูปนี้ว่า "เดินถึง แต่ประกาศ
+# ไว้ให้ผ่าน → เขียว" ซึ่งแย่กว่าตัวตรวจที่เดินไม่ถึง เพราะมันไม่ได้ว่าง มันเขียว
+#
+# ⚠️ ของเราเป็นรูปที่สี่ที่ยังไม่มีใครตั้งชื่อ — **ตัวตรวจเดินถึง leaf แล้วเดาจาก "ค่า"
+# ว่าเป็นข้อความของคนหรือไม่** (มีช่องว่าง · ยาวเกิน 64 · มีอักษรไทย) · วัดแล้ว
+# ชื่อคนที่ไม่มีช่องว่างหลุดเงียบทุกตัว:
+#
+#     'Somchai' · 'Ann' · 'somchai@example.com' · '0812345678'   → ปล่อยผ่านหมด
+#
+# ซึ่งคือ `actor.display_name` ที่ `care-agent-platform` โดนมาแล้วจริง และ `botforge`
+# ตัดทิ้งก่อนเขียนใบแรก · ถ้าวันหนึ่งมี leaf แบบนั้นโผล่ในใบเรา ไม่มีอะไรจับได้เลย
+#
+# แก้โดยตัดสินจาก **เส้นทาง** ไม่ใช่จาก **ค่า** — เส้นทางเป็นสิ่งที่มีคนตัดสิน
+# ส่วนค่าเป็นสิ่งที่ตัวตรวจเดา · leaf เส้นทางใหม่ที่ยังไม่มีใครตัดสินใจเรื่องมัน = แดง
+#
+# ห้าม wildcard ทั้งในนี้และใน text_fields — guarantee ข้อ 9 บังคับ
+pointer_leaves:
+  - path: $.event_id
+    why: id ที่สร้างจาก identity ที่ประกาศไว้ — ดู event_id_derivation
+  - path: $.correlation_id
+    why: id ของรอบ สร้างจาก identity เหมือนกัน
+  - path: $.subject_id
+    why: id ของสิ่งที่ event พูดถึง — advisory ใช้ id ของรอบ · drift ใช้ (rule, subject)
+  - path: $.subject_type
+    why: enum ของ event/v1
+  - path: $.event_type
+    why: ชื่อชนิดตาม EventTypeName — ชุดเปิดแต่เป็นชื่อ ไม่ใช่ข้อความ
+  - path: $.tenant_id
+    why: id ตาม identity/v1
+  - path: $.occurred_at
+    why: timestamp
+  - path: $.sequence
+    why: จำนวนเต็ม ตำแหน่งใน subject
+  - path: $.source.kind
+    why: enum — external | internal
+  - path: $.source.system
+    why: ชื่อ repo ของเราเอง ค่าคงที่ในโค้ด
+  - path: $.metadata.record_type
+    why: ชื่อชนิดที่เราประกาศไว้ใน vocabulary_added
+  - path: $.metadata.team
+    why: id ของทีมจาก graph — grounding check ปฏิเสธ id ที่ไม่มีจริง
+  - path: $.metadata.priority
+    why: จำนวนเต็ม
+  - path: $.metadata.references[]
+    why: id ของ component/contract จาก graph — ผ่าน grounding check แบบ strict
+  - path: $.metadata.grounded
+    why: boolean
+  - path: $.metadata.ecosystem_as_of
+    why: วันที่
+  - path: $.metadata.generated_by.provider
+    why: ชื่อ provider จากชุดปิด — claude | chatgpt | offline
+  - path: $.metadata.generated_by.model
+    why: ชื่อรุ่นของโมเดล ไม่ใช่ข้อความที่ใครพิมพ์
+  - path: $.metadata.rule
+    why: id ของกฎใน guardian/rules.yaml
+  - path: $.metadata.subject
+    why: id ของสิ่งที่ผิดกฎ — component · contract · plane · team
+
 # ── leaf ที่ถือข้อความของมนุษย์ (event/v1 semantics 1.3 · devfactory-core RFC-0013)
 #
 # กฎสามข้อของ invariant ใหม่

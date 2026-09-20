@@ -37,6 +37,8 @@ FORBIDDEN_KEYS = {"thinking", "reasoning", "chain_of_thought", "scratchpad", "ra
 
 MANIFEST = yaml.safe_load((ROOT / "platform-contract.yaml").read_text(encoding="utf-8"))
 DECLARED_TEXT = {f["path"] for f in MANIFEST.get("text_fields") or []}
+POINTER_LEAVES = {f["path"] for f in MANIFEST.get("pointer_leaves") or []}
+DECIDED_LEAVES = DECLARED_TEXT | POINTER_LEAVES
 THAI = re.compile(r"[\u0e00-\u0e7f]")
 
 
@@ -135,18 +137,44 @@ def guarantees(payloads: list[dict]) -> list[str]:
         if e["subject_type"] == "record" and not meta.get("record_type"):
             problems.append(f"{tag}: subject_type=record แต่ไม่มี metadata.record_type")
 
-    # 9. leaf ที่ถือข้อความของมนุษย์ ต้องประกาศไว้ใน platform-contract.yaml
-    #    (event/v1 semantics 1.3 · devfactory-core RFC-0013 ข้อ 1–2)
-    #    "ก่อนหน้านี้: มีคนพิมพ์ลงช่องที่รับได้ → ไม่มีใครเห็น
-    #     หลังจากนี้: ต้องแก้สัญญาก่อนถึงจะเพิ่มช่องได้ → มีคนรีวิว"
-    undeclared: dict[str, str] = {}
+    # 9. สำมะโน leaf เป็นชุดปิด — ทุกเส้นทางต้องมีคนตัดสินแล้ว
+    #    (event/v1 semantics 1.3/1.5 · devfactory-core RFC-0013 ข้อ 1–2 · RFC-0017)
+    #
+    # เดิมข้อนี้ตัดสินจาก **ค่า**: leaf ไหนหน้าตาเหมือนข้อความของคน (มีช่องว่าง
+    # ยาวเกิน 64 มีอักษรไทย) ต้องประกาศ · ที่เหลือปล่อยผ่าน
+    #
+    # ซึ่งแปลว่า 'Somchai' 'Ann' 'somchai@example.com' '0812345678' ผ่านหมด —
+    # และนั่นคือ actor.display_name ที่ care-agent-platform โดนมาแล้วจริง
+    # ตัวตรวจ **เดินถึง leaf เห็นค่า แล้วเดาผิด** ไม่ใช่เดินไม่ถึง
+    #
+    # ตอนนี้ตัดสินจาก **เส้นทาง** — เส้นทางเป็นสิ่งที่มีคนตัดสิน ค่าเป็นสิ่งที่ตัวตรวจเดา
+    # leaf เส้นทางใหม่ที่ยังไม่มีใครตัดสินใจเรื่องมัน = แดง ไม่ใช่ผ่านเงียบ
+    # (รูปนี้มาจาก botforge ในโต๊ะกลาง 20 ก.ย.)
+    wild = sorted(p for p in DECIDED_LEAVES if "*" in p)
+    if wild:
+        problems.append(f"ใบประกาศมี wildcard {wild} — จะกลืน ratchet ของตัวเอง "
+                        f"key ใหม่ที่เป็นข้อความของคนจะผ่านเพราะ 'ประกาศไว้แล้ว'")
+
+    unknown: dict[str, str] = {}
+    pointer_holding_text: dict[str, str] = {}
+    walked = 0
     for e in payloads:
         for path, value in _leaves(e):
-            if _is_human_text(value) and path not in DECLARED_TEXT:
-                undeclared.setdefault(path, str(value)[:60])
-    for path, sample in sorted(undeclared.items()):
-        problems.append(f"{path}: ถือข้อความของมนุษย์แต่ไม่ได้ประกาศใน text_fields "
+            walked += 1
+            if path not in DECIDED_LEAVES:
+                unknown.setdefault(path, str(value)[:60])
+            elif path in POINTER_LEAVES and _is_human_text(value):
+                pointer_holding_text.setdefault(path, str(value)[:60])
+    for path, sample in sorted(unknown.items()):
+        problems.append(f"{path}: leaf เส้นทางนี้ยังไม่มีใครตัดสินว่าเป็นตัวชี้หรือข้อความของคน "
+                        f"— ใส่ใน pointer_leaves หรือ text_fields ก่อน · ตัวอย่างค่า {sample!r}")
+    for path, sample in sorted(pointer_holding_text.items()):
+        problems.append(f"{path}: ประกาศไว้ว่าเป็นตัวชี้ แต่ค่าที่ปล่อยจริงเป็นข้อความ "
                         f"— {sample!r}")
+
+    # ตัวตรวจที่ตอบว่า "ไม่เจอ" ต้องบอกด้วยว่ามันเดินไปกี่ที่ — ศูนย์จากการเดิน N ที่
+    # กับศูนย์จากการไม่ได้เดิน เป็นคนละคำตอบ (devfactory-core ในโต๊ะกลาง 20 ก.ย.)
+    problems.append(f"__walked__{walked}")
 
     # 10. คำนวณ event_id ซ้ำจากใบเองต้องได้ค่าเดิม
     #
@@ -212,11 +240,15 @@ def main() -> int:
             schema_errors.append(f"{e['event_id']} · {loc}: {err.message[:120]}")
 
     problems = guarantees(payloads)
+    walked = next((int(p.removeprefix("__walked__")) for p in problems
+                   if p.startswith("__walked__")), 0)
+    problems = [p for p in problems if not p.startswith("__walked__")]
 
     by_type: dict[str, int] = {}
     for e in payloads:
         by_type[e["event_type"]] = by_type.get(e["event_type"], 0) + 1
-    print(f"ตรวจ {len(payloads)} event ที่ผลิตจากการทำงานจริง")
+    print(f"ตรวจ {len(payloads)} event ที่ผลิตจากการทำงานจริง · "
+          f"เดิน {walked} leaf ({len(DECIDED_LEAVES)} เส้นทางที่ตัดสินแล้วในใบ)")
     for t, n in sorted(by_type.items()):
         print(f"  {t}: {n}")
 

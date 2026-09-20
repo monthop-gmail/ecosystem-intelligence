@@ -521,3 +521,71 @@ def test_รายการ_identity_ในใบประกาศต้อง�
         paths = declared[event_type]
         assert [p.removeprefix("$.metadata.") for p in paths] == list(fields), \
             f"{event_type}: ใบประกาศกับโค้ดไม่ตรงกัน"
+
+
+# ── สำมะโน leaf เป็นชุดปิด — selftest ที่กลายพันธุ์จาก payload จริง ─────────
+#
+# รูปมาจาก botforge ในโต๊ะกลาง 20 ก.ย. · สีเขียวของสำมะโนอ่านได้สองอย่างพร้อมกัน
+# คือ "ไม่มี leaf แปลกปลอม" กับ "ไม่ได้เดินเลย" — เทสต์พวกนี้แยกสองอย่างนั้นออก
+@pytest.fixture
+def census(sample_result):
+    """ของจริงจาก emitter ไม่ใช่ใบที่เขียนขึ้นให้ผ่าน
+
+    รอบแรกผมเขียน payload ด้วยมือ แล้วมันตกสองข้อทันที (event_id ที่แต่งเอง
+    กับ subject ที่มี event ใบเดียว) — ซึ่งเป็นเหตุผลที่ repo นี้ห้าม fixture
+    ตั้งแต่แรก · ใบที่เขียนเองพิสูจน์ได้แค่ว่าเราเขียนใบเป็น
+    """
+    pc = _payload_check()
+    return pc, events.advisory_events(sample_result)
+
+
+def test_ของจริงที่ไม่ได้แตะต้องเงียบ(census):
+    pc, evs = census
+    assert [p for p in pc.guarantees(evs) if not p.startswith("__walked__")] == []
+
+
+def test_leaf_เส้นทางใหม่ที่ยังไม่มีใครตัดสินต้องแดง(census):
+    pc, evs = census
+    evs[0]["metadata"]["operator_note"] = "x"   # สั้น ไม่มีช่องว่าง ไม่ใช่ไทย
+    found = pc.guarantees(evs)
+    assert any("ยังไม่มีใครตัดสิน" in p and "operator_note" in p for p in found)
+
+
+def test_ชื่อคนที่ไม่มีช่องว่างต้องไม่หลุด(census):
+    """เกณฑ์เดิมตัดสินจากค่า — 'Somchai' ไม่มีช่องว่าง ยาว 7 ไม่ใช่ไทย จึงผ่าน
+
+    ซึ่งคือ actor.display_name ที่ care-agent-platform โดนมาแล้วจริง
+    ตอนนี้ตัดสินจากเส้นทาง เส้นทางใหม่จึงแดงไม่ว่าค่าจะหน้าตาอย่างไร
+    """
+    pc, evs = census
+    evs[0]["metadata"]["display_name"] = "Somchai"
+    assert not pc._is_human_text("Somchai"), "เกณฑ์เดิมมองว่านี่เป็นตัวชี้ — นั่นคือช่องโหว่"
+    assert any("display_name" in p for p in pc.guarantees(evs)), "แต่สำมะโนต้องจับได้"
+
+
+def test_ตัวชี้ที่เริ่มถือข้อความต้องแดง(census):
+    pc, evs = census
+    evs[0]["metadata"]["team"] = "ทีมที่คนพิมพ์ชื่อเข้ามาเอง ไม่ใช่ id จาก graph"
+    assert any("ประกาศไว้ว่าเป็นตัวชี้ แต่ค่าที่ปล่อยจริงเป็นข้อความ" in p
+               for p in pc.guarantees(evs))
+
+
+def test_wildcard_ในใบประกาศต้องแดง(census, monkeypatch):
+    """wildcard จะกลืน ratchet ของตัวเอง — key ใหม่ผ่านเพราะ 'ประกาศไว้แล้ว'"""
+    pc, evs = census
+    monkeypatch.setattr(pc, "DECIDED_LEAVES", pc.DECIDED_LEAVES | {"$.metadata.*"})
+    assert any("wildcard" in p for p in pc.guarantees(evs))
+
+
+def test_ถอดเส้นทางออกจากใบแล้วต้องแดง(census, monkeypatch):
+    """พิสูจน์ว่าทะเบียนถูกอ่านจาก platform-contract.yaml จริง ไม่ใช่สำเนาในโค้ด"""
+    pc, evs = census
+    monkeypatch.setattr(pc, "DECIDED_LEAVES", pc.DECIDED_LEAVES - {"$.metadata.question"})
+    assert any("$.metadata.question" in p for p in pc.guarantees(evs))
+
+
+def test_สำมะโนบอกด้วยว่าเดินไปกี่ที่(census):
+    """ศูนย์จากการเดิน N ที่ กับศูนย์จากการไม่ได้เดิน เป็นคนละคำตอบ"""
+    pc, evs = census
+    walked = [p for p in pc.guarantees(evs) if p.startswith("__walked__")]
+    assert walked and int(walked[0].removeprefix("__walked__")) > 15
