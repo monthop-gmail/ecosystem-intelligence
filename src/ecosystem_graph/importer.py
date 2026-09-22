@@ -23,43 +23,66 @@ TABLES = [
 ]
 
 
-def snapshot(conn) -> dict[str, set[tuple]]:
-    """ถ่ายภาพสิ่งที่อยู่ใน DB ตอนนี้ เพื่อเทียบส่วนต่างก่อนเขียนทับ"""
-    out: dict[str, set[tuple]] = {}
-    for table in ("teams", "repositories", "planes", "contracts", "components"):
-        rows = fetch_all(conn, f"SELECT id FROM {table}")
-        out[table] = {(r["id"],) for r in rows}
-    rows = fetch_all(conn, "SELECT component_id, contract_id, relation FROM component_contracts")
-    out["component_contracts"] = {(r["component_id"], r["contract_id"], r["relation"]) for r in rows}
+def _primary_key(conn, table: str) -> list[str]:
+    """คีย์ของตารางอ่านจาก catalog ไม่ใช่จากรายการที่เขียนมือไว้
+
+    รายการที่เขียนมือจะ drift จาก schema จริง ซึ่งเป็นกลไกเดียวกับที่ทำให้
+    ตัวนับส่วนต่างเดิมพลาด
+    """
+    rows = fetch_all(conn, """
+        SELECT a.attname AS col
+          FROM pg_index i
+          JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+         WHERE i.indrelid = %s::regclass AND i.indisprimary
+         ORDER BY array_position(i.indkey, a.attnum)
+    """, (table,))
+    return [r["col"] for r in rows]
+
+
+def snapshot(conn) -> dict[str, dict[tuple, dict]]:
+    """ถ่ายภาพ **ทั้งแถว** ไม่ใช่แค่ id ของแถว
+
+    เดิมถ่ายแค่ id แล้วเทียบกับ id ที่คำนวณจาก yaml · ผลคือ import รายงาน
+    "ไม่มีส่วนต่าง" ทั้งที่เพิ่งเขียน pin ใหม่ลงไปจริง (เจอ 22 ก.ย. ตอน re-pin
+    ไป event/v1 v1.8.1) — ข้อมูลลงถูก แต่ **รายงานบอกว่าไม่ได้ลง**
+
+    อันตรายเพราะบรรทัดนั้นคือสิ่งเดียวที่คนอ่านเพื่อยืนยันว่าที่แก้ไปมีผล ·
+    ถ้าแก้ผิดบรรทัด (เกือบเกิดมาแล้วสองครั้งในการ re-pin) มันก็เงียบเหมือนกัน
+    """
+    out: dict[str, dict[tuple, dict]] = {}
+    for table in TABLES:
+        key = _primary_key(conn, table)
+        rows = fetch_all(conn, f"SELECT * FROM {table}")
+        if not key:                       # ไม่มี PK — ทั้งแถวคือคีย์
+            out[table] = {tuple(sorted((k, str(v)) for k, v in r.items())): r for r in rows}
+        else:
+            out[table] = {tuple(str(r[k]) for k in key): r for r in rows}
     return out
 
 
-def _wanted(doc: dict) -> dict[str, set[tuple]]:
-    return {
-        "teams": {(t["id"],) for t in doc["teams"]},
-        "repositories": {(r["id"],) for r in doc["repositories"]},
-        "planes": {(p["id"],) for p in doc["planes"]},
-        "contracts": {(c["id"],) for c in doc["contracts"]},
-        "components": {(c["id"],) for c in doc["components"]},
-        "component_contracts": {
-            (c["id"], k, rel)
-            for c in doc["components"]
-            for rel, field in (("exposes", "exposes"), ("consumes", "consumes"),
-                               ("expected", "expected_contracts"))
-            for k in c.get(field, [])
-        },
-    }
+def _fmt(v) -> str:
+    """ค่าที่คนอ่านแล้วเทียบกับ ecosystem.yaml ได้ทันที ไม่ใช่ repr ของ Python"""
+    if v is None:
+        return "(ว่าง)"
+    text = str(v)
+    return text if len(text) <= 60 else text[:57] + "…"
 
 
-def diff(before: dict[str, set[tuple]], after: dict[str, set[tuple]]) -> list[str]:
+def diff(before: dict[str, dict[tuple, dict]],
+         after: dict[str, dict[tuple, dict]]) -> list[str]:
     lines: list[str] = []
     for table in after:
-        added = after[table] - before.get(table, set())
-        removed = before.get(table, set()) - after[table]
-        for item in sorted(added):
-            lines.append(f"  + {table}: {' '.join(item)}")
-        for item in sorted(removed):
-            lines.append(f"  - {table}: {' '.join(item)}")
+        was, now = before.get(table, {}), after[table]
+        for k in sorted(now.keys() - was.keys()):
+            lines.append(f"  + {table}: {' '.join(k)}")
+        for k in sorted(was.keys() - now.keys()):
+            lines.append(f"  - {table}: {' '.join(k)}")
+        for k in sorted(now.keys() & was.keys()):
+            fields = [f for f in now[k]
+                      if str(was[k].get(f)) != str(now[k][f])]
+            for f in fields:
+                lines.append(f"  ~ {table}: {' '.join(k)} · {f}: "
+                             f"{_fmt(was[k].get(f))} → {_fmt(now[k][f])}")
     return lines
 
 
@@ -151,12 +174,14 @@ def run(path: Path | str | None = None, *, dry_run: bool = False) -> dict[str, A
     doc, result = load(path)  # strict=True → ValidationError ถ้าไม่ผ่าน
 
     with connect() as conn:
+        # ถ่ายภาพก่อน → เขียน → ถ่ายภาพหลัง · ทั้งสองข้างอ่านจาก DB จริง
+        # จึงไม่มีสำเนาของ mapping yaml→DB ให้ drift
         before = snapshot(conn)
-        changes = diff(before, _wanted(doc))
+        _write(conn, doc)
+        changes = diff(before, snapshot(conn))
         if dry_run:
             conn.rollback()
         else:
-            _write(conn, doc)
             conn.commit()
     return {"changes": changes, "warnings": result.warnings, "dry_run": dry_run}
 

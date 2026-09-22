@@ -116,7 +116,15 @@ def test_contract_ที่มีคนรอใช้ปิดไม่ได�
 
 
 def test_conformance_ที่เก่าเกินถูกจับ(conn, rules, loaded_db):
+    """คืนค่าเดิมที่อ่านมา ไม่ใช่วันที่ที่ฝังไว้ตอนเขียนเทสต์
+
+    เดิม finally เขียนทับด้วย '2026-08-19' ซึ่งเป็นค่า ณ วันที่เขียนเทสต์ ·
+    พอ ecosystem.yaml ขยับ เทสต์นี้ก็ทิ้งค่าผิดไว้ใน DB ให้เทสต์ถัดไป
+    และไม่มีใครเห็นเพราะตัวนับส่วนต่างของ importer ตอนนั้นมองไม่เห็นเนื้อในแถว
+    """
     with connect() as c:
+        before = fetch_all(c, "SELECT last_verified FROM conformance "
+                              "WHERE component_id = 'devfactory-core'")[0]["last_verified"]
         c.execute("UPDATE conformance SET last_verified = '2020-01-01' "
                   "WHERE component_id = 'devfactory-core'")
         c.commit()
@@ -124,8 +132,8 @@ def test_conformance_ที่เก่าเกินถูกจับ(conn, r
             found = checks.stale_conformance(c, rules["conformance-stale"])
             assert any(f["subject"] == "devfactory-core" for f in found)
         finally:
-            c.execute("UPDATE conformance SET last_verified = '2026-08-19' "
-                      "WHERE component_id = 'devfactory-core'")
+            c.execute("UPDATE conformance SET last_verified = %s "
+                      "WHERE component_id = 'devfactory-core'", (before,))
             c.commit()
 
 

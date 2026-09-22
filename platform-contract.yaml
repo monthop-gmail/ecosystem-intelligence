@@ -15,7 +15,7 @@ contracts:
 
 conformance:
   status: passing
-  last_verified: 2026-09-20
+  last_verified: 2026-09-22
 
   # ADR-0006 บังคับ consumer 3 ข้อ
   #   1. manifest         ไฟล์นี้
@@ -28,7 +28,7 @@ conformance:
   # ⚠️ ข้อ 3 จะบล็อกการ merge ได้จริงต่อเมื่อเปิด branch protection แล้วตั้ง check
   #    เป็น required — เป็น repo setting ไม่ใช่สิ่งที่ไฟล์นี้ยืนยันได้
 
-pinned_contracts_commit: d333cac58ac9e97db9328084c9d3eb89ec9e0d1d   # conformance/pinned.yaml
+pinned_contracts_commit: ba0a35e35cedb534c5ea91de73a9d385d025e22b   # conformance/pinned.yaml
 semantics_version: "1.5"   # event/v1 v1.8.0 · derived_from ของ schema ที่ pin ไว้
 
 # vocabulary ที่ repo นี้เพิ่มเข้ามาเอง

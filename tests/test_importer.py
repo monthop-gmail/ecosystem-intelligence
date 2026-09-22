@@ -63,3 +63,51 @@ def test_ข้อมูลตรงกับ_yaml(loaded_db):
         # เทสต์ที่ฝังค่าจะแดงทั้งที่ไม่มีอะไรผิด (เกิดขึ้นแล้วเมื่อ 17 ก.ย.)
         want = next(x for x in doc["components"] if x["id"] == "devfactory-core")
         assert row["pinned_commit"] == want["conformance"]["pinned_commit"]
+
+
+def test_แก้เนื้อในแถวต้องถูกรายงาน_ไม่ใช่เงียบ(loaded_db, tmp_path):
+    """ตัวนับส่วนต่างเดิมถ่ายภาพแค่ id ของแถว ไม่ได้ถ่ายเนื้อในแถว
+
+    ผลคือ 22 ก.ย. ตอน re-pin ไป event/v1 v1.8.1 · import เขียน pin ใหม่ลง DB
+    สำเร็จ แล้วพิมพ์ว่า "ไม่มีส่วนต่าง" · ข้อมูลลงถูก แต่รายงานบอกว่าไม่ได้ลง
+
+    อันตรายเพราะบรรทัดนั้นคือสิ่งเดียวที่คนอ่านเพื่อยืนยันว่าที่แก้ไปมีผล
+    ถ้าแก้ผิดบรรทัดก็เงียบเหมือนกันทุกประการ
+    """
+    doc, _ = load()
+    ours = next(c for c in doc["components"] if c["id"] == "ecosystem-intelligence")
+    ours["conformance"]["pinned_commit"] = "0" * 40
+    ours["conformance"]["last_verified"] = "2026-01-01"
+    path = tmp_path / "ecosystem.yaml"
+    path.write_text(yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    changes = run(path, dry_run=True)["changes"]
+    text = "\n".join(changes)
+    assert "pinned_commit" in text, f"pin เปลี่ยนแต่ไม่ถูกรายงาน — {changes}"
+    assert "last_verified" in text, f"วันที่เปลี่ยนแต่ไม่ถูกรายงาน — {changes}"
+    assert "ecosystem-intelligence" in text, "ต้องบอกด้วยว่าแถวไหน"
+
+
+def test_เปลี่ยนเจ้าของ_component_ต้องถูกรายงาน(loaded_db, tmp_path):
+    """ไม่ใช่แค่ conformance — ทุก field ที่ตัดสินใจไว้ต้องมองเห็น"""
+    doc, _ = load()
+    ours = next(c for c in doc["components"] if c["id"] == "botforge")
+    ours["owner"] = "delivery-team"
+    path = tmp_path / "ecosystem.yaml"
+    path.write_text(yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    text = "\n".join(run(path, dry_run=True)["changes"])
+    assert "owner" in text and "platform-team → delivery-team" in text, text
+
+
+def test_dry_run_ที่มีส่วนต่างต้องไม่เขียนจริง(loaded_db, tmp_path):
+    """ตอนนี้ dry-run เขียนลง transaction แล้ว rollback — ต้องพิสูจน์ว่า rollback จริง"""
+    doc, _ = load()
+    next(c for c in doc["components"] if c["id"] == "botforge")["owner"] = "delivery-team"
+    path = tmp_path / "ecosystem.yaml"
+    path.write_text(yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    assert run(path, dry_run=True)["changes"], "ต้องเห็นส่วนต่างก่อน ไม่งั้นเทสต์นี้ไม่ได้ตรวจอะไร"
+    with connect() as c:
+        owner = fetch_one(c, "SELECT owner FROM components WHERE id = 'botforge'")["owner"]
+    assert owner == "platform-team", "dry-run เขียนจริงลง DB"
