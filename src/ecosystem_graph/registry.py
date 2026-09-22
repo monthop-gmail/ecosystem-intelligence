@@ -149,9 +149,22 @@ def reconcile(conn, owner: str = DEFAULT_OWNER) -> dict[str, Any]:
     declared = {r["id"]: r for r in entries(conn)}
     drift: list[dict] = []
 
+    # token ที่เห็นแต่ public จะทำให้ repo สมาชิกที่เป็น private อ่านได้ว่า "หาไม่เจอ"
+    #
+    # GITHUB_TOKEN ของ Actions เห็นเฉพาะ repo ตัวเองกับ public · บัญชีนี้มี private
+    # เกินร้อย และเคยเปลี่ยน repo 21 ตัวเป็น private ในรอบเดียวเมื่อ 18 ก.ย.
+    # ถ้ารันด้วย token แบบนั้น สมาชิกที่เป็น private จะถูกรายงานว่าหายไปทุกวัน
+    # ซึ่งเป็น "ตรวจไม่ได้" ที่พิมพ์ออกมาหน้าตาเหมือน "ตรวจแล้วไม่พบ"
+    # (ที่มา: ecosystem-brief ไปเปิด workflow ของเราอ่านแล้วทักมาในโต๊ะกลาง 21 ก.ย.)
+    sees_private = any(m["visibility"] == "private" for m in actual.values())
+
     for rid, row in declared.items():
         on_gh = actual.get(rid)
-        if row["does_exist"] and on_gh is None:
+        if row["does_exist"] and on_gh is None and not sees_private:
+            drift.append({"repository": rid, "kind": "unverifiable",
+                          "detail": "หาไม่เจอ — แต่ token นี้เห็นแต่ public จึงสรุปไม่ได้ "
+                                    "ว่าไม่มีอยู่ หรือมีอยู่แต่เป็น private"})
+        elif row["does_exist"] and on_gh is None:
             drift.append({"repository": rid, "kind": "missing",
                           "detail": "ประกาศว่ามีอยู่ แต่หาไม่เจอบน GitHub"})
         elif not row["does_exist"] and on_gh is not None:
@@ -170,6 +183,10 @@ def reconcile(conn, owner: str = DEFAULT_OWNER) -> dict[str, Any]:
                               "detail": "ถูก archive บน GitHub แล้ว"})
 
     candidates = _candidates(gh, conn, actual, declared)
+    visibility_counts: dict[str, int] = {}
+    for m in actual.values():
+        visibility_counts[m["visibility"] or "unknown"] = \
+            visibility_counts.get(m["visibility"] or "unknown", 0) + 1
     cand_names = {c["repository"] for c in candidates}
     unrelated = sorted(name for name, meta in actual.items()
                        if name not in declared and name not in cand_names
@@ -187,6 +204,8 @@ def reconcile(conn, owner: str = DEFAULT_OWNER) -> dict[str, Any]:
         "unrelated_count": len(unrelated),
         "unrelated": unrelated,
         "repositories_without_component": orphan_repos,
+        "sees_private": sees_private,
+        "visibility_counts": visibility_counts,
     }
 
 
@@ -213,7 +232,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n⚠️  ข้ามการเทียบกับ GitHub: {report['reason']}")
         return 0
 
-    print(f"\nเทียบกับ GitHub ({report['on_github']} repo ในบัญชี {report['owner']})")
+    vis = report["visibility_counts"]
+    breakdown = " · ".join(f"{k} {n}" for k, n in sorted(vis.items()))
+    print(f"\nเทียบกับ GitHub ({report['on_github']} repo ในบัญชี {report['owner']} — {breakdown})")
+    if not report["sees_private"]:
+        print("  ⚠️  token นี้ไม่เห็น private repo สักตัว — ผลด้านล่างครอบเฉพาะ public")
+        print("      สมาชิกที่เป็น private จะอ่านได้ว่า 'หาไม่เจอ' และ repo ที่เกี่ยวแต่ private")
+        print("      จะไม่ถูกเสนอเป็นผู้สมัครเลย · ใช้ token ที่มี scope repo ก่อนเชื่อผลนี้")
     if report["drift"]:
         for d in report["drift"]:
             print(f"  ✗ {d['repository']}: {d['kind']} — {d['detail']}")
@@ -233,7 +258,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("\n  ✓ ไม่มี repo ที่มีหลักฐานว่าเกี่ยวแต่ตกทะเบียน")
 
-    print(f"\n  repo อื่นในบัญชี: {report['unrelated_count']} ตัว "
+    scope = "" if report["sees_private"] else " (เฉพาะ public)"
+    print(f"\n  repo อื่นในบัญชี{scope}: {report['unrelated_count']} ตัว "
           f"— ไม่มีหลักฐานว่าเกี่ยวกับ ecosystem นี้")
     if show_all and report["unrelated"]:
         print("    " + ", ".join(report["unrelated"]))

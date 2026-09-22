@@ -46,12 +46,31 @@ jobs:
           python -m ecosystem_graph.migrate
           python -m ecosystem_graph.importer
 
+      # sync ล้มไม่ควรทำให้ไม่ได้รายงานเลย — แต่ต้องไม่ทำให้ job ขึ้นเขียวด้วย
+      #
+      # เดิมมีแค่ continue-on-error: true · ผลคือ sync พัง รายงานเดินต่อบนข้อมูลเก่า
+      # แล้ว job เขียว — "ตรวจไม่ได้" กับ "ตรวจแล้วไม่พบปัญหา" พิมพ์ออกมาเหมือนกัน
+      # ซึ่งเป็นข้อที่ repo นี้เที่ยวทักทีมอื่นอยู่ แล้วมีอยู่ใน CI ตัวเอง
+      # (ที่มา: ecosystem-brief ไปเปิดไฟล์นี้อ่านแล้วทักมาในโต๊ะกลาง 21 ก.ย.)
       - name: sync จาก GitHub
-        continue-on-error: true   # sync ล้มไม่ควรทำให้ไม่ได้รายงานเลย
+        id: sync
+        continue-on-error: true
         run: python -m ecosystem_graph.github.sync
+
+      - name: บอกในรายงานว่า sync ล้ม
+        if: steps.sync.outcome == 'failure'
+        run: |
+          echo "> ⚠️ **sync จาก GitHub ล้ม** — ทุกอย่างข้างล่างคำนวณจาก ecosystem.yaml" \
+               "อย่างเดียว ไม่ได้เทียบกับ GitHub จริง" >> "$GITHUB_STEP_SUMMARY"
 
       - name: รายงานสุขภาพ
         run: python -m ecosystem_graph.health --remote >> "$GITHUB_STEP_SUMMARY"
 
       - name: Guardian ต้องไม่มี error
         run: python -m ecosystem_graph.cli_guardian --remote
+
+      - name: sync ที่ล้มต้องไม่จบเขียว
+        if: steps.sync.outcome == 'failure'
+        run: |
+          echo "::error::sync จาก GitHub ล้ม — รายงานข้างบนคำนวณจากข้อมูลที่ไม่ได้เทียบกับของจริง"
+          exit 1
